@@ -22,6 +22,9 @@ struct SafetyConfig {
   int front_stop_distance_cm{15};
   int rear_stop_distance_cm{15};
   double hold_duration_sec{0.0};
+  // 센서 값이 이 시간(초) 넘게 갱신되지 않으면(또는 한 번도 안 들어오면) 해당
+  // 방향을 장애물로 간주해 막는다. 0 이하면 감시를 끈다(기존 동작).
+  double sensor_timeout_sec{0.0};
 };
 
 struct VelocityCommand {
@@ -58,14 +61,23 @@ public:
   // 사용한다.
   std::optional<StopReason> immediateStopReason() const noexcept;
 
+  // 센서 타임아웃을 현재 시각 기준으로 다시 평가한 뒤 immediateStopReason()을
+  // 반환한다. 센서 메시지가 아예 끊기면 콜백이 호출되지 않으므로 주기 타이머에서
+  // 불러야 한다.
+  std::optional<StopReason> pollStopReason(TimeNanoseconds now_ns);
+
   int distanceCm(SensorSide side) const noexcept;
   bool isHolding(SensorSide side) const noexcept;
+  bool isStale(SensorSide side) const noexcept;
 
 private:
   struct ProximityState {
     int distance_cm{400};
     bool holding{false};
+    bool has_reading{false};
+    bool stale{false};
     TimeNanoseconds hold_started_ns{0};
+    TimeNanoseconds last_update_ns{0};
   };
 
   static constexpr double kMotionEpsilon = 1.0e-6;
@@ -74,6 +86,7 @@ private:
   const ProximityState &stateFor(SensorSide side) const noexcept;
   int stopDistanceCm(SensorSide side) const noexcept;
   void refreshState(SensorSide side, TimeNanoseconds now_ns);
+  bool isBlocking(const ProximityState &state) const noexcept;
   StopReason evaluateStopReason(const VelocityCommand &command) const noexcept;
 
   SafetyConfig config_;

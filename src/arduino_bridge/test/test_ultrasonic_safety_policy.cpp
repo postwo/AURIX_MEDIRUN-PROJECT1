@@ -125,5 +125,37 @@ TEST(UltrasonicSafetyPolicyTest, AppliesRuntimeConfigurationChanges) {
   EXPECT_EQ(decision.reason, StopReason::kRearObstacle);
 }
 
+TEST(UltrasonicSafetyPolicyTest, BlocksWhenSensorNeverReportsOrGoesStale) {
+  UltrasonicSafetyPolicy policy(SafetyConfig{15, 15, 0.0, 0.5});
+
+  // 한 번도 값이 안 들어온 센서는 알 수 없는 상태이므로 진행 방향을 막는다.
+  auto decision = policy.filterCommand(VelocityCommand{0.2, 0.0}, 0);
+  EXPECT_TRUE(decision.shouldStop());
+  EXPECT_EQ(decision.reason, StopReason::kFrontObstacle);
+
+  policy.updateDistance(SensorSide::kFront, 100, 0);
+  policy.updateDistance(SensorSide::kRear, 100, 0);
+  EXPECT_FALSE(
+      policy.filterCommand(VelocityCommand{0.2, 0.0}, kOneSecond / 4)
+          .shouldStop());
+
+  // 타임아웃(0.5초)을 넘기면 값이 100cm여도 정지한다.
+  EXPECT_TRUE(policy.pollStopReason(kOneSecond).has_value());
+  EXPECT_TRUE(policy.isStale(SensorSide::kFront));
+
+  // 새 값이 들어오면 해제된다.
+  policy.updateDistance(SensorSide::kFront, 100, kOneSecond);
+  policy.updateDistance(SensorSide::kRear, 100, kOneSecond);
+  EXPECT_FALSE(policy.pollStopReason(kOneSecond).has_value());
+}
+
+TEST(UltrasonicSafetyPolicyTest, TimeoutDisabledByDefault) {
+  UltrasonicSafetyPolicy policy;
+  policy.updateDistance(SensorSide::kFront, 100, 0);
+  EXPECT_FALSE(policy.filterCommand(VelocityCommand{0.2, 0.0}, 100 * kOneSecond)
+                   .shouldStop());
+  EXPECT_FALSE(policy.isStale(SensorSide::kFront));
+}
+
 } // namespace
 } // namespace arduino_bridge
