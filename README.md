@@ -159,7 +159,7 @@ CycloneDDS IPv4 UDP 전송을 사용한다. 이미지 데이터는 JPEG 압축 �
 Docker / Docker Compose가 설치되어 있어야 한다. 최초 1회만 아래처럼 실행하면 `db/schema/postgresql_schema.sql`이 자동 적용된다.
 
 ```bash
-cp .env.example .env   # 필요시 값 수정
+cp .env.example .env   # POSTGRES_PASSWORD 는 반드시 채운다(기본값 없음)
 docker compose up -d
 ```
 
