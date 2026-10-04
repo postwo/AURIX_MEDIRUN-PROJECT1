@@ -1,3 +1,4 @@
+#include <exception>
 #include <memory>
 #include <string>
 
@@ -61,7 +62,14 @@ private:
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<WaypointManager>());
+  int exit_code = 0;
+  try {
+    rclcpp::spin(std::make_shared<WaypointManager>());
+  } catch (const std::exception & e) {
+    // 웨이포인트 파일을 못 읽으면 노드를 띄울 수 없다. 원인을 남기고 비정상 종료한다.
+    RCLCPP_FATAL(rclcpp::get_logger("waypoint_manager"), "시작 실패: %s", e.what());
+    exit_code = 1;
+  }
   rclcpp::shutdown();
-  return 0;
+  return exit_code;
 }
