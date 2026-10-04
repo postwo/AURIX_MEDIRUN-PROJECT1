@@ -306,7 +306,7 @@ void LoginDialog::buildUi(bool mockMode)
     auto *demoLabel = new QLabel(QStringLiteral("ⓘ 데모 계정 안내"), m_loginCard);
 #endif
     demoLabel->setObjectName(QStringLiteral("demoHint"));
-    demoLabel->setToolTip(QStringLiteral("admin / admin123  ·  user / user123"));
+    demoLabel->setToolTip(QStringLiteral("최초 실행 시 AURIX_ADMIN_PASSWORD / AURIX_USER_PASSWORD 환경변수로 초기 비밀번호를 지정합니다.\n지정하지 않으면 콘솔에 임시 비밀번호가 한 번 출력됩니다."));
     cardLayout->addWidget(demoLabel);
 
     formAreaLayout->addWidget(m_loginCard);

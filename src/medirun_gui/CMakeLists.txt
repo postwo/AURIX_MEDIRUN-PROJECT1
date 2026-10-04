@@ -58,6 +58,8 @@ qt_add_executable(medirun_gui
     src/services/dbauthservice.cpp
     src/services/dbauthservice.h
     src/services/dbconnection.cpp
+    src/services/initialcredentials.cpp
+    src/services/initialcredentials.h
     src/services/dbconnection.h
     src/services/dboperationsoverviewservice.cpp
     src/services/dboperationsoverviewservice.h
