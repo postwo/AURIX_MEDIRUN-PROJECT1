@@ -130,6 +130,11 @@ qt_add_executable(medirun_gui
     src/pages/callhistorypage.cpp
     src/pages/callhistorypage.h
     src/pages/livecontrolpage.cpp
+    src/pages/livecontrolpage_ui.cpp
+    src/pages/livecontrolpage_view.cpp
+    src/pages/livecontrolpage_telemetry.cpp
+    src/pages/livecontrolpage_recording.cpp
+    src/pages/livecontrolpage_helpers.h
     src/pages/livecontrolpage.h
     src/pages/missionopspage.cpp
     src/pages/missionopspage.h
