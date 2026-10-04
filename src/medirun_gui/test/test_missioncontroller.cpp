@@ -58,6 +58,9 @@ struct Fixture
     WaypointRepository repo;
     MissionStorageService storage;
     MissionRosInterface ros;
+    FakeRobotService robots;
+    FakeOverviewService overview;
+    bool useDb {false};
     std::unique_ptr<MissionController> controller;
 
     explicit Fixture(bool withHome = true)
@@ -73,7 +76,30 @@ struct Fixture
 
     void build()
     {
-        controller = std::make_unique<MissionController>(AppSession{}, &nav, &repo, &storage, &ros, nullptr, nullptr);
+        controller = std::make_unique<MissionController>(AppSession{}, &nav, &repo, &storage, &ros,
+                                                         useDb ? static_cast<RobotService *>(&robots) : nullptr,
+                                                         useDb ? static_cast<OperationsOverviewService *>(&overview) : nullptr);
+    }
+
+    // 로봇 1대가 등록된 DB 협력 객체를 켠다(Pi 복귀 세션 기록 경로용).
+    void enableDb(int robotCount = 1)
+    {
+        useDb = true;
+        for (int i = 0; i < robotCount; ++i) {
+            RobotRecord record;
+            record.id = 7 + i;
+            record.name = QStringLiteral("robot%1").arg(i);
+            robots.robots.append(record);
+        }
+    }
+
+    // 호출 → 도착(Arrived)까지 진행한다. 미션/큐 ID를 돌려준다.
+    QPair<QString, QString> arriveAtCallZone(const QString &buttonId = QStringLiteral("CZ1"))
+    {
+        startNavigating(buttonId);
+        nav.navigationResult(QStringLiteral("SUCCEEDED"), QString());
+        const MissionSnapshot snapshot = controller->missionSnapshot();
+        return {snapshot.missionId, snapshot.queueId};
     }
 
     void call(const QString &buttonId)
@@ -149,6 +175,36 @@ private slots:
     void anomalyTitleFollowsConnectionState();
     void retryRunsOnceAndRecordsOutcome();
     void progressFollowsRemainingDistance();
+
+    // Pi 자동 복귀와 DB 세션 기록
+    void piReturningOnlyUpdatesScreenAndDoesNotResendGoal();
+    void piReturningOpensDbSessionWithCachedRoute();
+    void piReturningMarksEachPassedGoalOnce();
+    void piReturningSessionNeedsExactlyOneRobot();
+    void piReturningContinuesWhenDbSessionFails();
+    void piReturningIsIgnoredUnlessArrived();
+    void piReplayedReturningDoesNotOpenSecondSession();
+    void piReturnFailedFailsMissionAndClosesSession();
+    void piReturnFailedIsIgnoredWhileNavigating();
+    void dockSuccessClosesPiSessionAsSucceeded();
+    void cancelWhileReturningClosesPiSessionAsCancelled();
+    void dockResultWhileArrivedStillFinishesMission();
+    void dockResultIsIgnoredWhileNavigating();
+    void piArmedPhaseHasNoEffect();
+
+    // 경계 조건
+    void announceTestDriveSpeaksLabelOrDefault();
+    void confirmStartNextQueueRequiresIdleAndWaitingItem();
+    void declineNextQueueKeepsWaitingItemAndRecords();
+    void divertFromIdleStartsSelectedCallDirectly();
+    void divertIsIgnoredWhileCancelling();
+    void divertWithUnknownQueueIdIsIgnored();
+    void cancelBeforeGoalAcceptedIsAllowed();
+    void returnHomeFromArrivalWithoutHomeFailsMission();
+    void returnHomeIsNotRequestedTwice();
+    void returnHomeIsRefusedWhileParking();
+    void repositoryChangeNotifiesOnlyWhileMissionActive();
+    void amclPoseUpdatesCurrentWaypointNameDuringMission();
 
 private:
     QTemporaryDir m_settingsDir;
@@ -822,6 +878,438 @@ void MissionControllerTest::progressFollowsRemainingDistance()
     // 처음 거리보다 멀어져도 0~100 범위를 벗어나지 않는다.
     f.nav.feedbackDistanceRemaining(total * 3.0);
     QCOMPARE(f.controller->missionSnapshot().progressPercent, 0);
+}
+
+// ---- Pi 자동 복귀와 DB 세션 기록 -------------------------------------------------
+
+void MissionControllerTest::piReturningOnlyUpdatesScreenAndDoesNotResendGoal()
+{
+    Fixture f;
+    f.build();
+    const auto ids = f.arriveAtCallZone();
+    const int goalsBefore = f.nav.navigateCalls.size();
+
+    f.ros.piReturnStatusReceived(QStringLiteral("returning"), ids.first, ids.second, -1, 1, false);
+
+    QCOMPARE(f.state(), MissionState::ReturningHome);
+    QVERIFY(f.controller->missionSnapshot().returningHome);
+    QCOMPARE(f.nav.navigateCalls.size(), goalsBefore); // 복귀 goal은 Pi가 이미 보냈다
+    QCOMPARE(world().historyTypes().count(QStringLiteral("RETURN_HOME_STARTED")), 1);
+}
+
+void MissionControllerTest::piReturningOpensDbSessionWithCachedRoute()
+{
+    Fixture f;
+    f.enableDb();
+    f.nav.hasAmclPose = true;
+    f.nav.amclX = 1.5;
+    f.nav.amclY = 2.5;
+    f.build();
+    const auto ids = f.arriveAtCallZone();
+
+    f.ros.piReturnStatusReceived(QStringLiteral("returning"), ids.first, ids.second, -1, 1, false);
+
+    QCOMPARE(f.overview.started.size(), 1);
+    const FakeOverviewService::StartedSession session = f.overview.started.first();
+    QCOMPARE(session.robotId, 7);
+    QCOMPARE(session.mode, QStringLiteral("auto"));
+    QCOMPARE(session.name, QStringLiteral("Pi 로컬 복귀"));
+    // 도착 시 Pi에 알려준 경로(HOME 한 점)를 그대로 기록한다.
+    QCOMPARE(session.goals.size(), 1);
+    QCOMPARE(session.goals.first().x, 0.0);
+    QCOMPARE(session.goals.first().y, 0.0);
+    QVERIFY(session.hasStartPose);
+    QCOMPARE(session.startPose.x, 1.5);
+    QCOMPARE(session.startPose.y, 2.5);
+}
+
+void MissionControllerTest::piReturningMarksEachPassedGoalOnce()
+{
+    Fixture f;
+    f.enableDb();
+    f.build();
+    const auto ids = f.arriveAtCallZone();
+    f.ros.piReturnStatusReceived(QStringLiteral("returning"), ids.first, ids.second, -1, 3, false);
+    QVERIFY(f.overview.marked.isEmpty()); // 아직 goal이 나가기 전(-1)
+
+    f.ros.piReturnStatusReceived(QStringLiteral("returning"), ids.first, ids.second, 2, 3, false);
+    QCOMPARE(f.overview.marked.size(), 2); // 0, 1번 지점이 지나갔다
+    QCOMPARE(f.overview.marked.at(0).second, 0);
+    QCOMPARE(f.overview.marked.at(1).second, 1);
+
+    // 같은 진행률을 다시 받아도 중복 기록하지 않는다.
+    f.ros.piReturnStatusReceived(QStringLiteral("returning"), ids.first, ids.second, 2, 3, false);
+    QCOMPARE(f.overview.marked.size(), 2);
+
+    f.ros.piReturnStatusReceived(QStringLiteral("returning"), ids.first, ids.second, 3, 3, false);
+    QCOMPARE(f.overview.marked.size(), 3);
+    QCOMPARE(f.overview.marked.last().second, 2);
+}
+
+void MissionControllerTest::piReturningSessionNeedsExactlyOneRobot()
+{
+    for (const int robotCount : {0, 2}) {
+        world().reset();
+        Fixture f;
+        f.enableDb(robotCount);
+        f.build();
+        const auto ids = f.arriveAtCallZone();
+
+        f.ros.piReturnStatusReceived(QStringLiteral("returning"), ids.first, ids.second, -1, 1, false);
+
+        // 로봇이 몇 대인지 모르면 엉뚱한 로봇의 세션으로 기록하지 않는다.
+        QVERIFY2(f.overview.started.isEmpty(), qPrintable(QStringLiteral("robots=%1").arg(robotCount)));
+        QCOMPARE(f.state(), MissionState::ReturningHome); // 화면 상태는 그대로 따라간다
+    }
+}
+
+void MissionControllerTest::piReturningContinuesWhenDbSessionFails()
+{
+    Fixture f;
+    f.enableDb();
+    f.overview.startShouldFail = true;
+    f.build();
+    const auto ids = f.arriveAtCallZone();
+
+    f.ros.piReturnStatusReceived(QStringLiteral("returning"), ids.first, ids.second, -1, 1, false);
+    f.ros.piReturnStatusReceived(QStringLiteral("returning"), ids.first, ids.second, 1, 1, false);
+
+    QCOMPARE(f.state(), MissionState::ReturningHome);
+    QCOMPARE(f.overview.started.size(), 1);
+    QVERIFY(f.overview.marked.isEmpty()); // 세션이 없으니 진행률도 기록하지 않는다
+
+    f.ros.dockResultReceived(true, QString());
+    QVERIFY(f.overview.finished.isEmpty()); // 닫을 세션도 없다
+    QCOMPARE(f.state(), MissionState::Completed);
+}
+
+void MissionControllerTest::piReturningIsIgnoredUnlessArrived()
+{
+    Fixture f;
+    f.enableDb();
+    f.build();
+    f.startNavigating();
+    const MissionSnapshot snapshot = f.controller->missionSnapshot();
+
+    f.ros.piReturnStatusReceived(QStringLiteral("returning"), snapshot.missionId, snapshot.queueId, -1, 1, false);
+
+    QCOMPARE(f.state(), MissionState::Navigating);
+    QVERIFY(f.overview.started.isEmpty());
+    QVERIFY(!world().historyTypes().contains(QStringLiteral("RETURN_HOME_STARTED")));
+}
+
+void MissionControllerTest::piReplayedReturningDoesNotOpenSecondSession()
+{
+    Fixture f;
+    f.enableDb();
+    f.build();
+    const auto ids = f.arriveAtCallZone();
+
+    f.ros.piReturnStatusReceived(QStringLiteral("returning"), ids.first, ids.second, -1, 1, false);
+    f.ros.piReturnStatusReceived(QStringLiteral("returning"), ids.first, ids.second, -1, 1, true); // Wi-Fi 복구 후 재전송
+
+    QCOMPARE(f.overview.started.size(), 1);
+    QCOMPARE(world().historyTypes().count(QStringLiteral("RETURN_HOME_STARTED")), 1);
+}
+
+void MissionControllerTest::piReturnFailedFailsMissionAndClosesSession()
+{
+    Fixture f;
+    f.enableDb();
+    f.build();
+    const auto ids = f.arriveAtCallZone();
+    f.ros.piReturnStatusReceived(QStringLiteral("returning"), ids.first, ids.second, -1, 1, false);
+
+    f.ros.piReturnStatusReceived(QStringLiteral("return_failed"), ids.first, ids.second, 0, 1, false);
+
+    QCOMPARE(f.statusAt(0), MissionQueueStatus::Failed);
+    QVERIFY(world().historyTypes().contains(QStringLiteral("RETURN_HOME_FAILED")));
+    QCOMPARE(f.overview.finished.size(), 1);
+    QCOMPARE(f.overview.finished.first().sessionId, 100);
+    QVERIFY(!f.overview.finished.first().success);
+    QVERIFY(!f.overview.finished.first().cancelled);
+}
+
+void MissionControllerTest::piReturnFailedIsIgnoredWhileNavigating()
+{
+    Fixture f;
+    f.build();
+    f.startNavigating();
+    const MissionSnapshot snapshot = f.controller->missionSnapshot();
+
+    f.ros.piReturnStatusReceived(QStringLiteral("return_failed"), snapshot.missionId, snapshot.queueId, 0, 1, false);
+
+    QCOMPARE(f.state(), MissionState::Navigating);
+    QCOMPARE(f.statusAt(0), MissionQueueStatus::Active);
+}
+
+void MissionControllerTest::dockSuccessClosesPiSessionAsSucceeded()
+{
+    Fixture f;
+    f.enableDb();
+    f.build();
+    const auto ids = f.arriveAtCallZone();
+    f.ros.piReturnStatusReceived(QStringLiteral("returning"), ids.first, ids.second, -1, 1, false);
+
+    f.ros.dockResultReceived(true, QString());
+
+    QCOMPARE(f.state(), MissionState::Completed);
+    QCOMPARE(f.overview.finished.size(), 1);
+    QVERIFY(f.overview.finished.first().success);
+    QVERIFY(!f.overview.finished.first().cancelled);
+}
+
+void MissionControllerTest::cancelWhileReturningClosesPiSessionAsCancelled()
+{
+    Fixture f;
+    f.enableDb();
+    f.build();
+    const auto ids = f.arriveAtCallZone();
+    f.ros.piReturnStatusReceived(QStringLiteral("returning"), ids.first, ids.second, -1, 1, false);
+    QCOMPARE(f.state(), MissionState::ReturningHome);
+
+    f.controller->requestMissionCancel();
+    QCOMPARE(f.state(), MissionState::Cancelling);
+    QCOMPARE(f.nav.cancelCalls, 1);
+    f.nav.navigationResult(QStringLiteral("CANCELED"), QString());
+
+    QCOMPARE(f.overview.finished.size(), 1);
+    QVERIFY(!f.overview.finished.first().success);
+    QVERIFY(f.overview.finished.first().cancelled);
+}
+
+void MissionControllerTest::dockResultWhileArrivedStillFinishesMission()
+{
+    // Wi-Fi가 끊긴 동안 Pi가 복귀·주차를 끝냈다면, PC는 Arrived 상태에서 결과를 처음 받는다.
+    Fixture f;
+    f.build();
+    f.arriveAtCallZone();
+    QCOMPARE(f.state(), MissionState::Arrived);
+
+    f.ros.dockResultReceived(true, QString());
+
+    QCOMPARE(f.state(), MissionState::Completed);
+    QVERIFY(world().historyTypes().contains(QStringLiteral("PARKING_COMPLETED")));
+}
+
+void MissionControllerTest::dockResultIsIgnoredWhileNavigating()
+{
+    Fixture f;
+    f.build();
+    f.startNavigating();
+
+    f.ros.dockResultReceived(true, QString());
+
+    QCOMPARE(f.state(), MissionState::Navigating);
+    QVERIFY(!world().historyTypes().contains(QStringLiteral("PARKING_COMPLETED")));
+}
+
+void MissionControllerTest::piArmedPhaseHasNoEffect()
+{
+    Fixture f;
+    f.build();
+    const auto ids = f.arriveAtCallZone();
+    const QStringList before = world().historyTypes();
+
+    f.ros.piReturnStatusReceived(QStringLiteral("armed"), ids.first, ids.second, -1, 1, false);
+
+    QCOMPARE(f.state(), MissionState::Arrived);
+    QCOMPARE(world().historyTypes(), before);
+}
+
+// ---- 경계 조건 ----------------------------------------------------------------
+
+void MissionControllerTest::announceTestDriveSpeaksLabelOrDefault()
+{
+    Fixture f;
+    f.build();
+
+    f.controller->announceTestDrive(QStringLiteral("병실1"));
+    f.controller->announceTestDrive(QString());
+
+    QCOMPARE(world().audio.size(), 2);
+    QCOMPARE(world().audio.at(0), QStringLiteral("병실1(으)로 이동합니다"));
+    QCOMPARE(world().audio.at(1), QStringLiteral("지정한 위치로 이동합니다"));
+}
+
+void MissionControllerTest::confirmStartNextQueueRequiresIdleAndWaitingItem()
+{
+    Fixture f;
+    f.build();
+    f.call(QStringLiteral("CZ1"));
+    f.call(QStringLiteral("CZ2"));
+    f.nav.navigationGoalAccepted();
+    const QString waitingId = f.queueIdAt(1);
+
+    // 미션 진행 중에는 확인 요청이 와도 무시한다.
+    f.controller->confirmStartNextQueue(waitingId);
+    QCOMPARE(f.nav.navigateCalls.size(), 1);
+
+    // 모르는 ID, 또는 이미 진행 중인 항목도 무시한다.
+    f.controller->requestMissionCancel();
+    f.nav.navigationResult(QStringLiteral("CANCELED"), QString());
+    QCOMPARE(f.state(), MissionState::Idle);
+    f.controller->confirmStartNextQueue(QStringLiteral("Q-UNKNOWN"));
+    f.controller->confirmStartNextQueue(f.queueIdAt(0)); // 이미 Cancelled
+    QCOMPARE(f.nav.navigateCalls.size(), 1);
+
+    f.controller->confirmStartNextQueue(waitingId);
+    QCOMPARE(f.nav.navigateCalls.size(), 2);
+}
+
+void MissionControllerTest::declineNextQueueKeepsWaitingItemAndRecords()
+{
+    Fixture f;
+    f.build();
+    f.call(QStringLiteral("CZ1"));
+    f.call(QStringLiteral("CZ2"));
+    f.nav.navigationGoalAccepted();
+    f.controller->requestMissionCancel();
+    f.nav.navigationResult(QStringLiteral("CANCELED"), QString());
+
+    f.controller->declineNextQueue();
+
+    QVERIFY(world().historyTypes().contains(QStringLiteral("QUEUE_START_DECLINED")));
+    QCOMPARE(f.statusAt(1), MissionQueueStatus::Waiting); // 보류일 뿐 삭제되지 않는다
+    QCOMPARE(f.nav.navigateCalls.size(), 1);
+    QCOMPARE(f.state(), MissionState::Idle);
+}
+
+void MissionControllerTest::divertFromIdleStartsSelectedCallDirectly()
+{
+    Fixture f;
+    f.build();
+    f.call(QStringLiteral("CZ1"));
+    f.call(QStringLiteral("CZ2"));
+    f.nav.navigationGoalAccepted();
+    f.controller->requestMissionCancel();
+    f.nav.navigationResult(QStringLiteral("CANCELED"), QString());
+    QCOMPARE(f.state(), MissionState::Idle);
+    const int cancelCallsBefore = f.nav.cancelCalls;
+
+    f.controller->requestQueueDivert(f.queueIdAt(1));
+
+    QCOMPARE(f.nav.cancelCalls, cancelCallsBefore); // 취소할 goal이 없으니 바로 출발
+    QCOMPARE(f.nav.navigateCalls.size(), 2);
+    QCOMPARE(f.state(), MissionState::Starting);
+}
+
+void MissionControllerTest::divertIsIgnoredWhileCancelling()
+{
+    Fixture f;
+    f.build();
+    f.call(QStringLiteral("CZ1"));
+    f.call(QStringLiteral("CZ2"));
+    f.nav.navigationGoalAccepted();
+    f.controller->requestMissionCancel();
+    QCOMPARE(f.state(), MissionState::Cancelling);
+
+    f.controller->requestQueueDivert(f.queueIdAt(1));
+
+    QCOMPARE(f.state(), MissionState::Cancelling);
+    QCOMPARE(f.nav.cancelCalls, 1);
+}
+
+void MissionControllerTest::divertWithUnknownQueueIdIsIgnored()
+{
+    Fixture f;
+    f.build();
+    f.startNavigating();
+
+    f.controller->requestQueueDivert(QStringLiteral("Q-UNKNOWN"));
+
+    QCOMPARE(f.state(), MissionState::Navigating);
+    QCOMPARE(f.nav.cancelCalls, 0);
+}
+
+void MissionControllerTest::cancelBeforeGoalAcceptedIsAllowed()
+{
+    Fixture f;
+    f.build();
+    f.call(QStringLiteral("CZ1"));
+    QCOMPARE(f.state(), MissionState::Starting);
+
+    f.controller->requestMissionCancel();
+
+    QCOMPARE(f.state(), MissionState::Cancelling);
+    QCOMPARE(f.nav.cancelCalls, 1);
+}
+
+void MissionControllerTest::returnHomeFromArrivalWithoutHomeFailsMission()
+{
+    Fixture f(false);
+    f.build();
+    f.arriveAtCallZone();
+    QCOMPARE(f.state(), MissionState::Arrived);
+
+    f.controller->requestReturnHome();
+
+    QVERIFY(world().historyTypes().contains(QStringLiteral("RETURN_HOME_FAILED")));
+    QCOMPARE(f.statusAt(0), MissionQueueStatus::Failed);
+    for (const FakeWorld::Command &command : world().commands) {
+        QVERIFY(command.command != QStringLiteral("return_home")); // 실패한 요청을 Pi에 알리지 않는다
+    }
+}
+
+void MissionControllerTest::returnHomeIsNotRequestedTwice()
+{
+    Fixture f;
+    f.build();
+
+    f.controller->requestReturnHome();
+    f.controller->requestReturnHome();
+
+    QCOMPARE(f.nav.navigateCalls.size(), 1);
+    QCOMPARE(world().commands.size(), 1);
+}
+
+void MissionControllerTest::returnHomeIsRefusedWhileParking()
+{
+    Fixture f;
+    f.build();
+    f.controller->requestReturnHome();
+    f.nav.navigationResult(QStringLiteral("SUCCEEDED"), QString());
+    QCOMPARE(f.state(), MissionState::Parking);
+    const int goalsBefore = f.nav.navigateCalls.size();
+    const int commandsBefore = world().commands.size();
+
+    f.controller->requestReturnHome();
+
+    QCOMPARE(f.state(), MissionState::Parking);
+    QCOMPARE(f.nav.navigateCalls.size(), goalsBefore);
+    QCOMPARE(world().commands.size(), commandsBefore);
+}
+
+void MissionControllerTest::repositoryChangeNotifiesOnlyWhileMissionActive()
+{
+    Fixture f;
+    f.build();
+    QSignalSpy spy(f.controller.get(), &MissionController::missionChanged);
+
+    f.repo.upsertWaypoint(makeWaypoint(QStringLiteral("CZ3"), QStringLiteral("병실3"), 5.0, 5.0, 0.0, WaypointMarkerKind::CallZone));
+    QCOMPARE(spy.count(), 0); // 미션이 없으면 화면을 다시 그릴 필요가 없다
+
+    f.call(QStringLiteral("CZ1"));
+    spy.clear();
+    f.repo.upsertWaypoint(makeWaypoint(QStringLiteral("CZ3"), QStringLiteral("병실3-변경"), 5.0, 5.0, 0.0, WaypointMarkerKind::CallZone));
+    QVERIFY(spy.count() >= 1);
+}
+
+void MissionControllerTest::amclPoseUpdatesCurrentWaypointNameDuringMission()
+{
+    Fixture f;
+    f.build();
+    QSignalSpy spy(f.controller.get(), &MissionController::missionChanged);
+
+    f.nav.amclPoseUpdated(0.1, 0.1, 0.0); // 미션 전: 화면 갱신 없음
+    QCOMPARE(spy.count(), 0);
+
+    f.startNavigating();
+    f.nav.amclPoseUpdated(2.9, 3.9, 0.0); // CZ2(3,4)에 가장 가깝다
+    QCOMPARE(f.controller->missionSnapshot().currentWaypointName, QStringLiteral("병실2"));
+
+    f.nav.amclPoseUpdated(0.0, 0.1, 0.0); // HOME(0,0)
+    QCOMPARE(f.controller->missionSnapshot().currentWaypointName, QStringLiteral("홈"));
 }
 
 QTEST_GUILESS_MAIN(MissionControllerTest)

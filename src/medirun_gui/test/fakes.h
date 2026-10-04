@@ -7,6 +7,8 @@
 
 #include "../src/models/missiontypes.h"
 #include "../src/ros/navigationservice.h"
+#include "../src/services/operationsoverviewservice.h"
+#include "../src/services/robotservice.h"
 
 #include <QStringList>
 #include <QVector>
@@ -99,4 +101,95 @@ public:
         return true;
     }
     bool isNavigating() const override { return false; }
+};
+
+class FakeRobotService : public RobotService
+{
+public:
+    QVector<RobotRecord> robots;
+
+    QVector<RobotRecord> listRobots(bool = false) override { return robots; }
+    bool registerRobot(const QString &, const QString &, QString &) override { return false; }
+    bool deregisterRobot(int, QString &) override { return false; }
+};
+
+// DB 운영 기록 대역: MissionController 가 쓰는 세션 기록 호출만 저장하고, 나머지는 실패를 돌려준다.
+class FakeOverviewService : public OperationsOverviewService
+{
+public:
+    struct StartedSession
+    {
+        int robotId {0};
+        QString mode;
+        QString name;
+        QVector<NavGoalPoint> goals;
+        bool hasStartPose {false};
+        NavGoalPoint startPose;
+    };
+    struct FinishedSession
+    {
+        int sessionId {0};
+        bool success {false};
+        bool cancelled {false};
+    };
+
+    bool startShouldFail {false};
+    int nextSessionId {100};
+    QVector<StartedSession> started;
+    QVector<QPair<int, int>> marked; // (sessionId, index)
+    QVector<FinishedSession> finished;
+
+    bool startRobotSession(int robotId, const QString &mode, const QString &sessionName, const QVector<NavGoalPoint> &goals,
+                           bool hasStartPose, const NavGoalPoint &startPose, int &sessionId, QString &errorMessage) override
+    {
+        started.append({robotId, mode, sessionName, goals, hasStartPose, startPose});
+        if (startShouldFail) {
+            errorMessage = QStringLiteral("db down");
+            return false;
+        }
+        sessionId = nextSessionId++;
+        return true;
+    }
+    bool markGoalReached(int sessionId, int reachedIndex, QString &) override
+    {
+        marked.append({sessionId, reachedIndex});
+        return true;
+    }
+    bool finishRobotSession(int sessionId, bool success, bool cancelled, QString &) override
+    {
+        finished.append({sessionId, success, cancelled});
+        return true;
+    }
+
+    // 컨트롤러가 쓰지 않는 나머지 인터페이스
+    bool fetchSummary(OperationsSummaryMetrics &, QString &) override { return false; }
+    bool fetchRobotStatus(QVector<RobotStatusRow> &, QString &) override { return false; }
+    bool fetchSystemHealth(QVector<SystemHealthRow> &, QString &) override { return false; }
+    bool fetchRecentEvents(int, QVector<OperationsEventRow> &, QString &) override { return false; }
+    bool fetchSystemEvents(const QDate &, const QDate &, const QString &, QVector<OperationsEventRow> &, QString &) override { return false; }
+    bool recordConnectionStatus(int, const QString &, const QString &, const QString &, QString &) override { return false; }
+    bool recordSystemEvent(const QString &, const QString &, const QString &, QString &) override { return false; }
+    bool recordControlCommand(int, const QString &, const QString &, bool, const QString &, QString &) override { return false; }
+    bool recordUserAction(int, int, int, const QString &, const QString &, const QString &, QString &) override { return false; }
+    bool loadWaypointLibraryByName(int, const QString &, QString &, WaypointMap &, TrajectoryMap &, QString &) override { return false; }
+    bool saveWaypointLibrary(int, const QString &, const QString &, const WaypointMap &, const TrajectoryMap &, QString &) override { return false; }
+    bool deregisterHomeEntry(int, QString &) override { return false; }
+    bool loadActiveWaypointEntries(int, QVector<WaypointDef> &, QString &) override { return false; }
+    bool upsertWaypointEntry(int, const QString &, const QString &, double, double, double, int &, QString &) override { return false; }
+    bool deregisterWaypointEntry(int, const QString &, QString &) override { return false; }
+    bool loadActiveTrajectoryEntries(int, QVector<TrajectoryRow> &, QString &) override { return false; }
+    bool upsertTrajectoryEntry(int, const QString &, const QVector<TrajectoryStep> &, QString &) override { return false; }
+    bool deregisterTrajectoryEntry(int, const QString &, QString &) override { return false; }
+    bool findTrajectoriesReferencing(int, const QString &, int, QStringList &, QString &) override { return false; }
+    bool loadTrajectoryPosesForButton(int, const QString &, QString &, QVector<NavGoalPoint> &, QString &) override { return false; }
+    bool startDrivingSession(int, int &, int &, QString &) override { return false; }
+    bool appendDrivingRecord(int, double, double, double, double, double, double, QString &) override { return false; }
+    bool finishDrivingSession(int, QString &) override { return false; }
+    bool startCameraSession(int, int, const QString &, const QString &, int &, QString &) override { return false; }
+    bool recordCameraRecording(int, int, int, int, int, double, const QString &, int &, QString &) override { return false; }
+    bool recordFile(const QString &, const QString &, const QString &, const QString &, const QString &, const QString &, const QString &,
+                    QString &) override { return false; }
+    bool loadActiveCallButtons(QVector<CallButtonRow> &, QString &) override { return false; }
+    bool upsertCallButton(const QString &, const QString &, double, double, double, int &, QString &) override { return false; }
+    bool deregisterCallButton(const QString &, QString &) override { return false; }
 };
