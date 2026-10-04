@@ -36,17 +36,44 @@ class MissionManager(Node):
         self.create_timer(0.5, self._check_arrival_timeout)
         self._publish_state()
 
+    def _parse_payload(self, msg: String, what: str) -> Optional[Dict[str, Any]]:
+        """JSON 객체로 해석되지 않는 메시지는 경고만 남기고 None 을 돌려준다.
+
+        잘못된 메시지 하나가 콜백 예외로 이어져 상태가 중간에 멈추는 일을 막는다.
+        """
+        try:
+            payload = load_json_message(msg.data)
+        except ValueError as exc:
+            self.get_logger().warning("%s 무시: JSON 해석 실패 (%s)" % (what, exc))
+            return None
+        if not isinstance(payload, dict):
+            self.get_logger().warning("%s 무시: JSON 객체가 아닙니다" % what)
+            return None
+        return payload
+
     def _start_mission(self, msg: String) -> None:
         if self._state not in {"IDLE", "COMPLETED", "FAILED"}:
             self.get_logger().warning("new dispatch ignored while state=%s" % self._state)
             return
-        self._mission = load_json_message(msg.data)
+        mission = self._parse_payload(msg, "dispatch")
+        if mission is None:
+            return
+        # 상태를 바꾸기 전에 필요한 값부터 확인한다. 검증 없이 DISPATCHED 로 넘어가면
+        # 예외 이후 그 상태에 갇혀 이후 호출이 전부 무시된다.
+        route = mission.get("route")
+        target = route.get("target_waypoint_id") if isinstance(route, dict) else None
+        if not isinstance(target, str) or not target:
+            self.get_logger().warning("dispatch 무시: route.target_waypoint_id 가 없습니다 (mission_id=%s)" % mission.get("mission_id"))
+            return
+        self._mission = mission
         self._transition("DISPATCHED")
-        self._send_nav_goal(self._mission["route"]["target_waypoint_id"], "service_target")
+        self._send_nav_goal(target, "service_target")
         self._transition("NAVIGATING")
 
     def _handle_navigation_status(self, msg: String) -> None:
-        payload = load_json_message(msg.data)
+        payload = self._parse_payload(msg, "navigation status")
+        if payload is None:
+            return
         status = payload.get("status")
         goal_type = payload.get("goal_type")
         if status != "SUCCEEDED":
@@ -66,7 +93,9 @@ class MissionManager(Node):
             self._dock_pub.publish(dock_msg)
 
     def _handle_payload_event(self, msg: String) -> None:
-        payload = load_json_message(msg.data)
+        payload = self._parse_payload(msg, "payload event")
+        if payload is None:
+            return
         if payload.get("event") == "PAYLOAD_REMOVED" and self._state == "ARRIVED":
             self._transition("PAYLOAD_REMOVED")
             self._arrival_deadline_sec = time.monotonic() + float(
@@ -74,7 +103,9 @@ class MissionManager(Node):
             )
 
     def _handle_dock_result(self, msg: String) -> None:
-        payload = load_json_message(msg.data)
+        payload = self._parse_payload(msg, "dock result")
+        if payload is None:
+            return
         if self._state != "DOCKING":
             return
         if payload.get("status") == "SUCCEEDED":
@@ -84,7 +115,9 @@ class MissionManager(Node):
             self._transition("FAILED")
 
     def _handle_operator_command(self, msg: String) -> None:
-        payload = load_json_message(msg.data)
+        payload = self._parse_payload(msg, "operator command")
+        if payload is None:
+            return
         command = payload.get("command")
         if command == "cancel":
             cancel = Bool()
