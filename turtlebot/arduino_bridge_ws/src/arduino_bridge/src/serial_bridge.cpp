@@ -4,10 +4,13 @@
 #include <std_msgs/msg/string.hpp>
 
 #include <fcntl.h>
+#include <poll.h>
 #include <termios.h>
 #include <unistd.h>
 
 #include <cerrno>
+#include <chrono>
+#include <exception>
 #include <cstdlib>
 #include <cstring>
 #include <limits>
@@ -20,13 +23,7 @@ public:
   SerialBridge() : Node("serial_bridge")
   {
     port_ = declare_parameter<std::string>("port", "/dev/ttyACM0");
-    const int baud = declare_parameter<int>("baud", 9600);
-
-    if (!openSerial(port_, baud)) {
-      RCLCPP_ERROR(get_logger(), "시리얼 포트 열기 실패: %s", port_.c_str());
-      throw std::runtime_error("serial open failed");
-    }
-    RCLCPP_INFO(get_logger(), "시리얼 포트 연결됨: %s (%d baud)", port_.c_str(), baud);
+    baud_ = declare_parameter<int>("baud", 9600);
 
     button_pub_ = create_publisher<std_msgs::msg::String>("/arduino/button", 10);
     front_distance_pub_ =
@@ -74,6 +71,10 @@ public:
 
     timer_ = create_wall_timer(
       std::chrono::milliseconds(20), std::bind(&SerialBridge::readSerial, this));
+    // 아두이노 재부팅·USB 재연결 시 노드를 다시 띄우지 않고 스스로 복구한다.
+    reconnect_timer_ = create_wall_timer(
+      std::chrono::seconds(1), std::bind(&SerialBridge::tryConnect, this));
+    tryConnect();
   }
 
   ~SerialBridge() override
@@ -84,6 +85,32 @@ public:
   }
 
 private:
+  void tryConnect()
+  {
+    if (fd_ >= 0) {
+      return;
+    }
+    if (!openSerial(port_, baud_)) {
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 10000,
+        "시리얼 포트 열기 실패: %s (%s) — 1초마다 재시도합니다.", port_.c_str(),
+        std::strerror(errno));
+      return;
+    }
+    rx_buffer_.clear();
+    RCLCPP_INFO(get_logger(), "시리얼 포트 연결됨: %s (%d baud)", port_.c_str(), baud_);
+  }
+
+  void handleDisconnect(const char * reason)
+  {
+    RCLCPP_ERROR(get_logger(), "시리얼 연결 끊김 (%s): 재연결을 시도합니다.", reason);
+    if (fd_ >= 0) {
+      close(fd_);
+      fd_ = -1;
+    }
+    publishStatus("DISCONNECTED");
+  }
+
   bool openSerial(const std::string & port, int baud)
   {
     fd_ = open(port.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
@@ -93,8 +120,10 @@ private:
 
     termios tty{};
     if (tcgetattr(fd_, &tty) != 0) {
+      const int saved_errno = errno;
       close(fd_);
       fd_ = -1;
+      errno = saved_errno;
       return false;
     }
 
@@ -115,8 +144,10 @@ private:
     tty.c_iflag = 0;
 
     if (tcsetattr(fd_, TCSANOW, &tty) != 0) {
+      const int saved_errno = errno;
       close(fd_);
       fd_ = -1;
+      errno = saved_errno;
       return false;
     }
     return true;
@@ -124,11 +155,32 @@ private:
 
   void sendCommand(const std::string & command)
   {
+    if (fd_ < 0) {
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 5000, "시리얼 미연결 — 명령 폐기: %s", command.c_str());
+      return;
+    }
     const std::string wire_data = command + "\n";
-    const ssize_t written = write(fd_, wire_data.data(), wire_data.size());
-    if (written != static_cast<ssize_t>(wire_data.size())) {
+    // 논블로킹 fd라 한 번에 다 못 쓰거나 EAGAIN이 날 수 있다. 전송 버퍼가 비기를
+    // 잠깐 기다리며 끝까지 보낸다.
+    std::size_t sent = 0;
+    for (int attempt = 0; sent < wire_data.size() && attempt < 20; ++attempt) {
+      const ssize_t n = write(fd_, wire_data.data() + sent, wire_data.size() - sent);
+      if (n > 0) {
+        sent += static_cast<std::size_t>(n);
+        continue;
+      }
+      if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
+        handleDisconnect(std::strerror(errno));
+        return;
+      }
+      pollfd pfd{fd_, POLLOUT, 0};
+      poll(&pfd, 1, 5);
+    }
+    if (sent != wire_data.size()) {
       RCLCPP_ERROR(
-        get_logger(), "시리얼 전송 실패 (%s): %s", command.c_str(), std::strerror(errno));
+        get_logger(), "시리얼 전송 실패 (%s): %zu/%zu 바이트만 전송", command.c_str(), sent,
+        wire_data.size());
       return;
     }
     RCLCPP_INFO(get_logger(), "시리얼 명령 전송: %s", command.c_str());
@@ -136,11 +188,15 @@ private:
 
   void readSerial()
   {
+    if (fd_ < 0) {
+      return;
+    }
     char buffer[256];
     const ssize_t count = read(fd_, buffer, sizeof(buffer));
-    if (count < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-      RCLCPP_ERROR_THROTTLE(
-        get_logger(), *get_clock(), 2000, "시리얼 읽기 실패: %s", std::strerror(errno));
+    if (count < 0) {
+      if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
+        handleDisconnect(std::strerror(errno));
+      }
       return;
     }
 
@@ -224,7 +280,7 @@ private:
       std_msgs::msg::Bool msg;
       msg.data = (line == "HALL:1");
       payload_pub_->publish(msg);
-      RCLCPP_INFO(get_logger(), "적재 감지: %s", msg.data ? "적재됨" : "비어 있음");
+      RCLCPP_DEBUG(get_logger(), "적재 감지: %s", msg.data ? "적재됨" : "비어 있음");
       return;
     }
 
@@ -249,10 +305,11 @@ private:
     std_msgs::msg::Int32 msg;
     msg.data = value;
     publisher->publish(msg);
-    RCLCPP_INFO(get_logger(), "%s %d cm", prefix.c_str(), value);
+    RCLCPP_DEBUG(get_logger(), "%s %d cm", prefix.c_str(), value);
   }
 
   std::string port_;
+  int baud_ = 9600;
   int fd_ = -1;
   std::string rx_buffer_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr button_pub_;
@@ -263,12 +320,19 @@ private:
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr buzzer_sub_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr led_sub_;
   rclcpp::TimerBase::SharedPtr timer_;
+  rclcpp::TimerBase::SharedPtr reconnect_timer_;
 };
 
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<SerialBridge>());
+  int exit_code = 0;
+  try {
+    rclcpp::spin(std::make_shared<SerialBridge>());
+  } catch (const std::exception & e) {
+    RCLCPP_FATAL(rclcpp::get_logger("serial_bridge"), "치명적 오류로 종료: %s", e.what());
+    exit_code = 1;
+  }
   rclcpp::shutdown();
-  return 0;
+  return exit_code;
 }

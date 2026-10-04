@@ -33,10 +33,15 @@ public:
     battery_sub_ = create_subscription<std_msgs::msg::String>(
       "/medirun/system/battery", 10,
       [this](const std_msgs::msg::String::SharedPtr msg) {
+        // 파싱에 실패하면 100%로 간주하지 않고 마지막 정상 값을 유지한다.
+        // (이전에는 100.0으로 덮어써 배터리를 모를 때 호출을 받아들였다.)
         try {
           battery_percent_ = std::stod(msg->data);
-        } catch (...) {
-          battery_percent_ = 100.0;
+        } catch (const std::exception & e) {
+          RCLCPP_WARN_THROTTLE(
+            get_logger(), *get_clock(), 5000,
+            "잘못된 배터리 값 '%s' 무시 (%s), 마지막 값 %.1f%% 유지",
+            msg->data.c_str(), e.what(), battery_percent_);
         }
       });
   }

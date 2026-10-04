@@ -2,6 +2,7 @@
 
 #include <cctype>
 #include <sstream>
+#include <stdexcept>
 
 namespace medirun_mission
 {
@@ -97,8 +98,10 @@ std::optional<double> get_json_number(const std::string & json, const std::strin
   }
   try {
     return std::stod(json.substr(pos, end - pos));
-  } catch (...) {
-    return std::nullopt;
+  } catch (const std::invalid_argument &) {
+    return std::nullopt;  // 숫자가 아닌 값
+  } catch (const std::out_of_range &) {
+    return std::nullopt;  // double 범위를 넘는 값
   }
 }
 
