@@ -228,4 +228,9 @@ qt_generate_deploy_app_script(
 )
 install(SCRIPT ${deploy_script})
 
+if(BUILD_TESTING)
+    enable_testing()
+    add_subdirectory(test)
+endif()
+
 ament_package()
