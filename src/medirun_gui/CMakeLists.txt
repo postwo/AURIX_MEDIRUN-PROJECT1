@@ -151,6 +151,12 @@ qt_add_executable(medirun_gui
     src/pages/remotecontrolpage_helpers.h
     src/pages/remotecontrolpage.h
     src/pages/slammappingpage.cpp
+    src/pages/slammappingpage_ui.cpp
+    src/pages/slammappingpage_state.cpp
+    src/pages/slammappingpage_process.cpp
+    src/pages/slammappingpage_map.cpp
+    src/pages/slammappingpage_manual.cpp
+    src/pages/slammappingpage_internal.h
     src/pages/slammappingpage.h
     src/pages/systemsettingspage.cpp
     src/pages/systemsettingspage.h
