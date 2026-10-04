@@ -1,5 +1,6 @@
 #include "dbauthservice.h"
 #include "dbconnection.h"
+#include "initialcredentials.h"
 
 #include <QRandomGenerator>
 #include <QSqlError>
@@ -22,7 +23,7 @@ QString generateCryptSalt()
         "./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789");
     QString salt = QStringLiteral("$6$");
     for (int i = 0; i < 16; ++i) {
-        salt += alphabet.at(QRandomGenerator::global()->bounded(alphabet.size()));
+        salt += alphabet.at(QRandomGenerator::system()->bounded(alphabet.size()));
     }
     salt += QStringLiteral("$");
     return salt;
@@ -233,8 +234,12 @@ bool DbAuthService::ensureDefaultUsers(QString &errorMessage)
 
     if (countQuery.value(0).toInt() == 0) {
         QString insertError;
-        if (!insertUser(QStringLiteral("admin"), QStringLiteral("admin123"), UserRole::Admin, insertError)
-            || !insertUser(QStringLiteral("user"), QStringLiteral("user123"), UserRole::Staff, insertError)) {
+        const QString adminLogin = QStringLiteral("admin");
+        const QString staffLogin = QStringLiteral("user");
+        if (!insertUser(adminLogin, initialPasswordFromEnv("AURIX_ADMIN_PASSWORD", adminLogin),
+                        UserRole::Admin, insertError)
+            || !insertUser(staffLogin, initialPasswordFromEnv("AURIX_USER_PASSWORD", staffLogin),
+                           UserRole::Staff, insertError)) {
             errorMessage = QStringLiteral("기본 계정 생성 실패: %1").arg(insertError);
             return false;
         }

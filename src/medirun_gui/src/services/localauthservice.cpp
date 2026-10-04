@@ -1,4 +1,5 @@
 #include "localauthservice.h"
+#include "initialcredentials.h"
 
 #include <QCryptographicHash>
 #include <QRandomGenerator>
@@ -166,8 +167,17 @@ void LocalAuthService::ensureDefaultUsers()
         dirty = true;
     };
 
-    ensureUser(QStringLiteral("admin"), QStringLiteral("admin123"), UserRole::Admin);
-    ensureUser(QStringLiteral("user"), QStringLiteral("user123"), UserRole::Staff);
+    // 비밀번호는 계정이 실제로 없을 때만 정한다(이미 있으면 임시 비밀번호를 만들지 않음).
+    const auto ensureUserFromEnv = [&](const QString &loginId, const char *envName, UserRole role) {
+        for (const StoredUserRecord &record : storedUsers) {
+            if (record.loginId.compare(loginId, Qt::CaseInsensitive) == 0) {
+                return;
+            }
+        }
+        ensureUser(loginId, initialPasswordFromEnv(envName, loginId), role);
+    };
+    ensureUserFromEnv(QStringLiteral("admin"), "AURIX_ADMIN_PASSWORD", UserRole::Admin);
+    ensureUserFromEnv(QStringLiteral("user"), "AURIX_USER_PASSWORD", UserRole::Staff);
 
     if (dirty) {
         saveUsers(storedUsers);
