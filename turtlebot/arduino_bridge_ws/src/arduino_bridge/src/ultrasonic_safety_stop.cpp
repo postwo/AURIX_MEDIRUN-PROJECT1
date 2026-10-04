@@ -6,6 +6,7 @@
 #include <std_msgs/msg/int32.hpp>
 #include <std_msgs/msg/string.hpp>
 
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -21,6 +22,8 @@ public:
     declare_parameter("front_stop_distance_cm", 15);
     declare_parameter("rear_stop_distance_cm", 15);
     declare_parameter("hold_duration_sec", 0.0);
+    // 0이면 센서 끊김 감시를 끈다. 실로봇 launch에서 0.5 정도로 켠다.
+    declare_parameter("sensor_timeout_sec", 0.0);
 
     cmd_pub_ = create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 10);
     // 정지 시작/해제 순간에만 방송(레벨이 아니라 엣지) — arrival_return_manager가
@@ -57,6 +60,19 @@ public:
         [this](const std_msgs::msg::String::SharedPtr msg) {
           parking_active_ = msg->data != "IDLE" && msg->data != "PARKED" && msg->data != "FAILED";
         });
+    // 센서 메시지가 완전히 끊기면 콜백이 오지 않으므로 타이머로 타임아웃을 본다.
+    watchdog_timer_ = create_wall_timer(std::chrono::milliseconds(100), [this]() {
+      policy_.setConfig(currentConfig());
+      const auto reason = policy_.pollStopReason(nowNanoseconds());
+      if (!reason.has_value()) {
+        return;
+      }
+      cmd_pub_->publish(geometry_msgs::msg::Twist{});
+      updateStopState(true);
+      RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 2000,
+                            "%s 초음파 센서 데이터 끊김 — 안전 정지",
+                            reasonLabel(*reason));
+    });
   }
 
 private:
@@ -65,6 +81,7 @@ private:
         static_cast<int>(get_parameter("front_stop_distance_cm").as_int()),
         static_cast<int>(get_parameter("rear_stop_distance_cm").as_int()),
         get_parameter("hold_duration_sec").as_double(),
+        get_parameter("sensor_timeout_sec").as_double(),
     };
   }
 
@@ -147,6 +164,7 @@ private:
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr parking_cmd_sub_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr parking_state_sub_;
   bool parking_active_{false};
+  rclcpp::TimerBase::SharedPtr watchdog_timer_;
 };
 
 } // namespace arduino_bridge

@@ -83,7 +83,7 @@ def generate_launch_description():
                 package="arduino_bridge",
                 executable="ultrasonic_safety_stop",
                 name="ultrasonic_safety_stop",
-                parameters=[{"front_stop_distance_cm": 10, "rear_stop_distance_cm": 10, "hold_duration_sec": 0.0}],
+                parameters=[{"front_stop_distance_cm": 10, "rear_stop_distance_cm": 10, "hold_duration_sec": 0.0, "sensor_timeout_sec": 1.0}],
                 output="screen",
             ),
             # PC(MissionController)가 도착 시 arrival_notice만 보내면, 반출감지

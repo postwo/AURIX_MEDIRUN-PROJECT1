@@ -21,7 +21,10 @@ const SafetyConfig &UltrasonicSafetyPolicy::config() const noexcept {
 
 void UltrasonicSafetyPolicy::updateDistance(SensorSide side, int distance_cm,
                                             TimeNanoseconds now_ns) {
-  stateFor(side).distance_cm = distance_cm;
+  auto &state = stateFor(side);
+  state.distance_cm = distance_cm;
+  state.has_reading = true;
+  state.last_update_ns = now_ns;
   refreshState(side, now_ns);
 }
 
@@ -58,12 +61,23 @@ UltrasonicSafetyPolicy::immediateStopReason() const noexcept {
   return reason;
 }
 
+std::optional<StopReason>
+UltrasonicSafetyPolicy::pollStopReason(TimeNanoseconds now_ns) {
+  refreshState(SensorSide::kFront, now_ns);
+  refreshState(SensorSide::kRear, now_ns);
+  return immediateStopReason();
+}
+
 int UltrasonicSafetyPolicy::distanceCm(SensorSide side) const noexcept {
   return stateFor(side).distance_cm;
 }
 
 bool UltrasonicSafetyPolicy::isHolding(SensorSide side) const noexcept {
   return stateFor(side).holding;
+}
+
+bool UltrasonicSafetyPolicy::isStale(SensorSide side) const noexcept {
+  return stateFor(side).stale;
 }
 
 UltrasonicSafetyPolicy::ProximityState &
@@ -84,6 +98,14 @@ int UltrasonicSafetyPolicy::stopDistanceCm(SensorSide side) const noexcept {
 void UltrasonicSafetyPolicy::refreshState(SensorSide side,
                                           TimeNanoseconds now_ns) {
   auto &state = stateFor(side);
+  if (config_.sensor_timeout_sec > 0.0) {
+    const double age_sec =
+        static_cast<double>(now_ns - state.last_update_ns) / 1'000'000'000.0;
+    state.stale = !state.has_reading || age_sec > config_.sensor_timeout_sec;
+  } else {
+    state.stale = false;
+  }
+
   if (state.distance_cm <= stopDistanceCm(side)) {
     state.holding = true;
     state.hold_started_ns = now_ns;
@@ -98,17 +120,23 @@ void UltrasonicSafetyPolicy::refreshState(SensorSide side,
   state.holding = false;
 }
 
+bool UltrasonicSafetyPolicy::isBlocking(
+    const ProximityState &state) const noexcept {
+  // 값이 끊긴 센서는 "안 보인다"가 아니라 "알 수 없다"이므로 막는 쪽으로 본다.
+  return state.holding || state.stale;
+}
+
 StopReason UltrasonicSafetyPolicy::evaluateStopReason(
     const VelocityCommand &command) const noexcept {
-  const bool front_blocking = front_.holding && command.linear_x > 0.0;
-  const bool rear_blocking = rear_.holding && command.linear_x < 0.0;
+  const bool front_blocking = isBlocking(front_) && command.linear_x > 0.0;
+  const bool rear_blocking = isBlocking(rear_) && command.linear_x < 0.0;
   // 순수 제자리 회전(선속도 0)일 때만 전후방 상관없이 둘 다 체크한다.
   // 전진/후진에 조향이 섞인 경우는 진행 방향 센서만 본다 — 그렇지 않으면
   // 전진 중 후방 센서가 걸려 계속 멈추는 문제가 있었다(2026-08-19).
   const bool in_place_rotation = std::abs(command.linear_x) <= kMotionEpsilon &&
                                  std::abs(command.angular_z) > kMotionEpsilon;
   const bool rotation_blocking =
-      in_place_rotation && (front_.holding || rear_.holding);
+      in_place_rotation && (isBlocking(front_) || isBlocking(rear_));
 
   if (rotation_blocking) {
     return StopReason::kRotationObstacle;
