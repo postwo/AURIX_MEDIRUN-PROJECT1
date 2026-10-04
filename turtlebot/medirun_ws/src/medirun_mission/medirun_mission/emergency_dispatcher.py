@@ -36,10 +36,14 @@ class EmergencyDispatcher(Node):
         self._ready = "READY" in msg.data
 
     def _handle_battery(self, msg: String) -> None:
+        # 파싱에 실패해도 100%로 간주하지 않고 마지막 정상 값을 유지한다.
+        # (이전에는 100.0으로 덮어써, 배터리를 모르는 채로 호출을 받아들였다.)
         try:
             self._battery_percent = float(msg.data)
         except ValueError:
-            self._battery_percent = 100.0
+            self.get_logger().warning(
+                "잘못된 배터리 값 %r 무시, 마지막 값 %.1f%% 유지" % (msg.data, self._battery_percent)
+            )
 
     def _handle_button(self, msg: String) -> None:
         now = time.monotonic()
