@@ -2,7 +2,6 @@
 
 #include "../src/services/missionrosinterface.h"
 #include "../src/services/missionstorageservice.h"
-#include "../src/services/waypointfile.h"
 
 FakeWorld &FakeWorld::instance()
 {
@@ -84,18 +83,4 @@ void MissionStorageService::saveQueue(QVector<MissionQueueItem> &queueItems)
 void MissionStorageService::appendHistory(const MissionHistoryEntry &entry)
 {
     FakeWorld::instance().appendedHistory.append(entry);
-}
-
-// ---- waypointfile 대역 (yaml-cpp 불필요) ---------------------------------------
-
-bool loadWaypointYaml(const QString &, QString &, WaypointMap &, TrajectoryMap &, QString &errorMessage)
-{
-    errorMessage = QStringLiteral("시험 환경: YAML 로드 미지원");
-    return false;
-}
-
-bool saveWaypointYaml(const QString &, const QString &, const WaypointMap &, const TrajectoryMap &, QString &errorMessage)
-{
-    errorMessage = QStringLiteral("시험 환경: YAML 저장 미지원");
-    return false;
 }

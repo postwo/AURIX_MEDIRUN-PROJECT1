@@ -7,6 +7,7 @@ add_executable(test_missioncontroller
     test_missioncontroller.cpp
     fakes.cpp
     fakes.h
+    stub_waypointfile.cpp
     ../src/services/missioncontroller.cpp
     ../src/services/missioncontroller_events.cpp
     ../src/services/missioncontroller_queue.cpp
@@ -30,3 +31,39 @@ target_include_directories(test_missioncontroller PRIVATE
 target_link_libraries(test_missioncontroller PRIVATE Qt6::Core Qt6::Test)
 
 add_test(NAME test_missioncontroller COMMAND test_missioncontroller)
+
+# ---- ROS·DB·로봇 없이 도는 나머지 단위 시험 ------------------------------------------
+find_package(Qt6 REQUIRED COMPONENTS Sql)
+
+function(add_gui_test name)
+    add_executable(${name} ${ARGN})
+    set_target_properties(${name} PROPERTIES AUTOMOC ON)
+    target_compile_features(${name} PRIVATE cxx_std_17)
+    target_include_directories(${name} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    )
+    target_link_libraries(${name} PRIVATE Qt6::Core Qt6::Sql Qt6::Test)
+    add_test(NAME ${name} COMMAND ${name})
+endfunction()
+
+add_gui_test(test_waypointrepository
+    test_waypointrepository.cpp
+    stub_waypointfile.cpp
+    ../src/services/waypointrepository.cpp
+    ../src/services/waypointrepository.h
+)
+
+add_gui_test(test_initialcredentials
+    test_initialcredentials.cpp
+    ../src/services/initialcredentials.cpp
+    ../src/services/initialcredentials.h
+)
+
+add_gui_test(test_missionstorage
+    test_missionstorage.cpp
+    stub_dbconnection.cpp
+    stub_dbconnection.h
+    ../src/services/missionstorageservice.cpp
+    ../src/services/missionstorageservice.h
+)
