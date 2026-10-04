@@ -61,7 +61,11 @@ qt_add_executable(medirun_gui
     src/services/initialcredentials.cpp
     src/services/initialcredentials.h
     src/services/dbconnection.h
-    src/services/dboperationsoverviewservice.cpp
+    src/services/dboperationsservice_overview.cpp
+    src/services/dboperationsservice_events.cpp
+    src/services/dboperationsservice_sessions.cpp
+    src/services/dboperationsservice_waypoints.cpp
+    src/services/dboperationsservice_callbuttons.cpp
     src/services/dboperationsoverviewservice.h
     src/services/operationsoverviewservice.h
     src/services/dbrobotservice.cpp
