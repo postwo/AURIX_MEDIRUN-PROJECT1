@@ -70,6 +70,12 @@ qt_add_executable(medirun_gui
     src/services/navgoallogrecorder.cpp
     src/services/navgoallogrecorder.h
     src/services/missioncontroller.cpp
+    src/services/missioncontroller_events.cpp
+    src/services/missioncontroller_queue.cpp
+    src/services/missioncontroller_returnflow.cpp
+    src/services/missioncontroller_dispatch.cpp
+    src/services/missioncontroller_state.cpp
+    src/services/missioncontroller_helpers.h
     src/services/missioncontroller.h
     src/services/teleopcontroller.cpp
     src/services/teleopcontroller.h
@@ -134,6 +140,10 @@ qt_add_executable(medirun_gui
     src/pages/robotmanagementpage.cpp
     src/pages/robotmanagementpage.h
     src/pages/remotecontrolpage.cpp
+    src/pages/remotecontrolpage_ui.cpp
+    src/pages/remotecontrolpage_map.cpp
+    src/pages/remotecontrolpage_controls.cpp
+    src/pages/remotecontrolpage_helpers.h
     src/pages/remotecontrolpage.h
     src/pages/slammappingpage.cpp
     src/pages/slammappingpage.h
@@ -142,6 +152,13 @@ qt_add_executable(medirun_gui
     src/pages/usermanagementpage.cpp
     src/pages/usermanagementpage.h
     src/pages/waypointmanagementpage.cpp
+    src/pages/waypointmanagementpage_ui.cpp
+    src/pages/waypointmanagementpage_view.cpp
+    src/pages/waypointmanagementpage_waypoints.cpp
+    src/pages/waypointmanagementpage_routes.cpp
+    src/pages/waypointmanagementpage_map.cpp
+    src/pages/waypointmanagementpage_navigation.cpp
+    src/pages/waypointmanagementpage_helpers.h
     src/pages/waypointmanagementpage.h
     src/windows/mainwindowstyler.cpp
     src/windows/mainwindowstyler.h
