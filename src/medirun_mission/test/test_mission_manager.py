@@ -245,13 +245,61 @@ def test_state_message_describes_the_mission(navigating):
     assert last["route"] == ROUTE
 
 
-@pytest.mark.xfail(strict=True, reason="route 가 없는 dispatch 를 받으면 KeyError 후 DISPATCHED 에 갇혀 이후 호출이 모두 무시된다")
 def test_malformed_dispatch_does_not_wedge_the_manager(node):
-    try:
-        send(node, DISPATCH, mission_id="BAD")  # route 없음
-    except KeyError:
-        pass
+    send(node, DISPATCH, mission_id="BAD")  # route 없음
 
-    dispatch(node, mission_id="M-2")  # 다음 정상 호출은 처리돼야 한다
+    assert states(node) == ["IDLE"]  # 상태가 바뀌지 않는다
+    dispatch(node, mission_id="M-2")  # 다음 정상 호출은 처리된다
 
     assert states(node)[-1] == "NAVIGATING"
+    assert goals(node)[-1]["mission_id"] == "M-2"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "{not json",
+        "[1, 2, 3]",
+        '"just a string"',
+        "42",
+        json.dumps({"mission_id": "M", "route": "not a dict"}),
+        json.dumps({"mission_id": "M", "route": {}}),
+        json.dumps({"mission_id": "M", "route": {"target_waypoint_id": ""}}),
+        json.dumps({"mission_id": "M", "route": {"target_waypoint_id": 7}}),
+        json.dumps({"mission_id": "M", "route": None}),
+    ],
+)
+def test_unusable_dispatch_is_ignored_with_warning(node, raw):
+    node.deliver(DISPATCH, String(data=raw))
+
+    assert states(node) == ["IDLE"]
+    assert goals(node) == []
+    assert node.log_text("warning")
+    dispatch(node)  # 이후 정상 호출은 문제없이 처리된다
+    assert states(node)[-1] == "NAVIGATING"
+
+
+def test_empty_dispatch_message_is_ignored(node):
+    node.deliver(DISPATCH, String(data=""))  # 빈 문자열은 {} 로 읽히지만 route 가 없다
+
+    assert states(node) == ["IDLE"]
+
+
+def test_bad_dispatch_does_not_overwrite_a_finished_mission(node):
+    dispatch(node, mission_id="M-1")
+    send(node, NAV_STATUS, status="FAILED")
+    before = json.loads(node.messages(STATE)[-1].data)
+
+    send(node, DISPATCH, mission_id="BAD")  # route 없음 — 이전 미션 정보를 덮어쓰면 안 된다
+
+    assert node._mission["mission_id"] == "M-1"
+    assert json.loads(node.messages(STATE)[-1].data) == before
+
+
+@pytest.mark.parametrize("topic", [NAV_STATUS, PAYLOAD_EVENT, DOCK_RESULT, UI_COMMAND])
+@pytest.mark.parametrize("raw", ["{broken", "[1]", "null"])
+def test_garbage_on_other_topics_is_ignored(arrived, topic, raw):
+    arrived.deliver(topic, String(data=raw))
+
+    assert states(arrived)[-1] == "ARRIVED"
+    assert arrived.log_text("warning")
