@@ -137,11 +137,37 @@ IDLE → VALIDATING → DISPATCHED → NAVIGATING → ARRIVED → PAYLOAD_REMOVE
 
 ## 🖥 관제 대시보드 (Qt / C++)
 
-| 개요 | 실시간 모니터 | SLAM 맵핑 |
-| :--: | :--: | :--: |
-| <img src="docs/screenshots/gui/v2/01_overview.png" alt="개요" /> | <img src="docs/screenshots/gui/v2/02_live_monitor.png" alt="실시간 모니터" /> | <img src="docs/screenshots/gui/v2/10_slam_mapping.png" alt="SLAM 맵핑" /> |
+관제사가 로봇 상태와 미션을 한 화면에서 확인하고, 필요하면 비상정지·미션 취소·홈 복귀·원격 조종을 내릴 수 있는 Qt(C++) 대시보드입니다. 대시보드가 끊겨도 자율 미션은 로봇 안에서 계속 수행됩니다.
 
-역할별 화면(관리자·사용자), 미션·호출 이력, 주행 로그, 원격 제어, 설정 화면으로 구성됩니다. 운영 영상: [대시보드 운영 영상](Video/대시보드%20운영%20영상2026-08-24%2012-01-20%20%28online-video-cutter.com%29.mp4)
+<div align="center">
+<img src="docs/images/dashboard/login.png" alt="로그인 화면" width="720" />
+</div>
+
+### 관제
+
+| 운영 현황 | 실시간 관제 |
+| :--: | :--: |
+| <img src="docs/images/dashboard/overview.png" alt="운영 현황" /> | <img src="docs/images/dashboard/live_monitor.png" alt="실시간 관제" /> |
+| 연결 로봇·진행 미션·오늘 호출·안전 이벤트 요약, 시스템 헬스(ROS 2·Nav2·DB·카메라) | 지도 위 로봇 위치, 카메라 영상, 배터리·AED 적재·전후방 장애물 상태, 녹화·스냅샷·미션 취소·홈 복귀 |
+
+| 미션 관제 | 원격 제어 |
+| :--: | :--: |
+| <img src="docs/images/dashboard/mission.png" alt="미션 관제" /> | <img src="docs/images/dashboard/remote_control.png" alt="원격 제어" /> |
+| 대기 호출 큐, 진행 중 미션, 24시간 처리 이력, 이상 상황 알림과 재시도·홈 복귀·미션 취소 | 방향 버튼·WASD 수동 조종, 속도 프리셋, 센서 상태, 도킹 재시도·자율 복귀 |
+
+### 지도 · 시스템
+
+| 웨이포인트 관리 | 이벤트 관리 |
+| :--: | :--: |
+| <img src="docs/images/dashboard/waypoints.png" alt="웨이포인트 관리" /> | <img src="docs/images/dashboard/events.png" alt="이벤트 관리" /> |
+| 지도 위에서 호출 구역·경유점·홈 위치를 등록하고 좌표·방향을 편집 | `system_event` 로그를 날짜·검색어로 조회 |
+
+| 로봇 관리 | 사용자 관리 |
+| :--: | :--: |
+| <img src="docs/images/dashboard/robots.png" alt="로봇 관리" /> | <img src="docs/images/dashboard/users.png" alt="사용자 관리" /> |
+| 운영 중인 로봇 이름과 모델 등록 | 계정 추가·삭제와 권한(ADMIN/STAFF/USER) 관리 |
+
+운영 영상: [대시보드 운영 영상](Video/대시보드%20운영%20영상2026-08-24%2012-01-20%20%28online-video-cutter.com%29.mp4)
 
 <br/>
 
