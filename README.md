@@ -137,7 +137,11 @@ IDLE → VALIDATING → DISPATCHED → NAVIGATING → ARRIVED → PAYLOAD_REMOVE
   <img src="docs/images/robot_v2_caster.jpg" alt="로봇 하부 볼 캐스터 클로즈업" width="50%" />
 </p>
 
-주행 영상: [하드웨어 수정 주행 영상](Video/하드웨어%20수정%20주행%20영상.mp4)
+<p align="center">
+  <img src="docs/images/robot_v2_driving.gif" alt="로봇 v2 주행 (미리보기)" width="420" />
+</p>
+
+🎬 [v2 주행 영상 전체 보기](Video/하드웨어%20수정%20주행%20영상.mp4) (약 2분 28초, 위 GIF는 일부 구간 미리보기)
 
 <br/>
 
@@ -173,7 +177,11 @@ IDLE → VALIDATING → DISPATCHED → NAVIGATING → ARRIVED → PAYLOAD_REMOVE
 | <img src="docs/images/dashboard/robots.png" alt="로봇 관리" /> | <img src="docs/images/dashboard/users.png" alt="사용자 관리" /> |
 | 운영 중인 로봇 이름과 모델 등록 | 계정 추가·삭제와 권한(ADMIN/STAFF/USER) 관리 |
 
-운영 영상: [대시보드 운영 영상](Video/대시보드%20운영%20영상2026-08-24%2012-01-20%20%28online-video-cutter.com%29.mp4)
+<p align="center">
+  <img src="docs/images/dashboard_demo.gif" alt="대시보드 운영 (미리보기)" width="720" />
+</p>
+
+🎬 [대시보드 운영 영상 전체 보기](Video/대시보드%20운영%20영상2026-08-24%2012-01-20%20%28online-video-cutter.com%29.mp4) (약 4분 50초, 위 GIF는 일부 구간 미리보기)
 
 <br/>
 
