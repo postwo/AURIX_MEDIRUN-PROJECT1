@@ -1,215 +1,198 @@
-# aurix_main_project_01
-This repository is used for ROS 2 classes and serves as a workspace for the aurix team.
+<div align="center">
 
-## Setup
+<img src="assets/aurix_logo.png" alt="AURIX" height="90" />
 
-Clone 직후 한 번만 실행해 Git 훅(커밋 규칙 검증)을 활성화한다.
+# AURIX MediRun
 
-```bash
-./scripts/setup-git-hooks.sh
+**지하철 역사 AED 배송 보조 로봇**
+
+SOS 버튼이 눌린 구역까지 AED를 자율 주행으로 운반하고, 반출 후 스스로 복귀·파킹하며, 전 과정을 로컬 DB에 기록합니다.
+
+![ROS 2 Humble](https://img.shields.io/badge/ROS_2-Humble-22314E?style=flat-square&logo=ros&logoColor=white)
+![Nav2](https://img.shields.io/badge/Nav2-AMCL-22314E?style=flat-square&logo=ros&logoColor=white)
+![Qt6](https://img.shields.io/badge/Qt6-C++-41CD52?style=flat-square&logo=qt&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+![Arduino](https://img.shields.io/badge/Arduino-ESP32-00979D?style=flat-square&logo=arduino&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
+![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04-E95420?style=flat-square&logo=ubuntu&logoColor=white)
+
+</div>
+
+<br/>
+
+## 📌 프로젝트 소개
+
+환자가 쓰러졌을 때 목격자가 AED를 가지러 자리를 비우면 환자 곁이 비게 되고, 왕복 시간이 초기 대응 시간을 잠식합니다. **MediRun은 AED 운반을 로봇이 대신해서, 사람이 환자 곁에 남아 응급 대응에 집중할 수 있게 하는 이동형 보조 로봇**입니다.
+
+| 항목 | 내용 |
+| :-- | :-- |
+| 적용 대상 | 지하철 역사 대합실·승강장 (가상 A역 기준 시연) |
+| 운용 형태 | 단일 로봇 자율 주행, 로봇 내부 완결형 (중앙 서버 미사용) |
+| 호출 구성 | 고정 SOS 버튼 3개 ↔ 최종 목적지 3개, 1:1 매핑 |
+| 플랫폼 | TurtleBot3 Burger + 직접 제작한 AED 트레일러, Raspberry Pi 4 |
+| 개발 기간 | 4주 (2026.07.20 ~ 08.14) |
+| 팀원 | 도희정, 최치언 |
+
+> **수행 범위 제한**: MediRun은 AED 운반과 그 기록만 담당합니다. 환자 상태 판단, 응급처치 판단, 119 자동 신고는 하지 않으며 119 신고는 현장의 사람이 직접 합니다.
+
+<br/>
+
+## 🎯 핵심 기능
+
+| 기능 | 내용 |
+| :-- | :-- |
+| SOS 호출 검증 | 버튼 ID를 웨이포인트에 매핑하고, 중복 호출·AED 적재·배터리·AMCL·Nav2 상태를 검사한 뒤 호출 위치와 시각을 기록 |
+| 자율 AED 배송 | Nav2 자율 주행, LiDAR·초음파 장애물 회피, 경광 LED와 5초 주기 음성 안내로 경로 확보 |
+| 반출 감지 | 홀센서 자석 이탈이 0.5초 이상 유지되면 AED 반출로 확정 |
+| 자동 복귀 | 반출 확정 후 15초 대기, 또는 3분 미반출 시 AED를 실은 채 홈 웨이포인트로 복귀 |
+| 정밀 파킹 | 도킹 대기점에서 ArUco 마커를 탐색·정렬해 3cm 이내로 파킹 |
+| 관제 대시보드 | Qt(C++) 역할별 화면, 실시간 모니터링, 원격 수동 제어, SLAM 맵핑 |
+| 운용 기록 | 호출·주행·반출·복귀·오류를 `mission_id` 기준으로 로컬 PostgreSQL에 저장 |
+
+<br/>
+
+## 🏗 시스템 아키텍처
+
+<div align="center">
+<img src="docs/images/architecture.png" alt="MediRun 시스템 아키텍처" width="820" />
+</div>
+
+- **현장 입력**: 역사 안 ESP32 콜버튼이 MQTT로 호출을 보내면 MQTT 브리지 노드가 버튼 ID를 출동 요청으로 바꿔 ROS 2 토픽으로 전달합니다.
+- **로봇(Raspberry Pi 4 + TurtleBot3)**: 아두이노 센서(초음파·홀센서·LED)를 USB Serial로 받고, Nav2·AMCL이 주행하며, 초음파 안전 게이트와 `safety_manager`가 모든 속도 명령을 마지막으로 검사한 뒤 `/cmd_vel`을 내보냅니다.
+- **관제(PC)**: Qt GUI가 미션·SLAM 상태를 관제하고, 호출·미션·녹화 기록은 PostgreSQL에 남깁니다.
+- **로컬 독립성**: Wi-Fi나 대시보드가 끊겨도 주행·안전 판단·복귀·기록은 로봇 내부에서 계속 수행하고, 대시보드는 3초 주기로 재연결합니다.
+
+### 노드 책임 분리
+
+| 계층 | 노드 | 역할 |
+| :-- | :-- | :-- |
+| 서비스 응용 | `emergency_dispatcher` | 버튼 ID·안전 조건 검증, 미션 요청 생성 (Nav2를 직접 제어하지 않음) |
+| | `waypoint_manager` | YAML 목적지·경로 조회와 Pose 검증 |
+| | `mission_manager` | 상태 전이, Nav2 액션, 재시도·복귀 관리 |
+| 안전·적재 | `safety_manager` | 모든 속도 명령보다 높은 우선순위로 최종 검사, 위험 시 0속도 |
+| | `payload_monitor` | 홀센서 기반 AED 적재·반출 확정 |
+| 주행·도킹 | Nav2 · AMCL · TF | 경로 계획·재계획, map 기준 위치 추정 |
+| | `docking_manager` | ArUco 정렬·접근·도킹 재시도 |
+| 입출력 | `arduino_bridge` | 버튼·초음파·홀센서·LED 시리얼 연결 |
+| 기록·실행 | `event_logger` · PostgreSQL · PM2 | 미션 ID 기준 이벤트 저장, 부팅 시 자동 실행·장애 시 재시작 |
+
+<br/>
+
+## 🔄 미션 흐름과 안전 제어
+
+```
+IDLE → VALIDATING → DISPATCHED → NAVIGATING → ARRIVED → PAYLOAD_REMOVED → RETURNING_HOME → DOCKING → DOCKED → IDLE
 ```
 
-- 커밋/브랜치 규칙: [`COMMIT_RULES.md`](COMMIT_RULES.md)
-- 네이밍·구조 컨벤션: [`CONVENTIONS.md`](CONVENTIONS.md)
+1. **SOS 호출** — 버튼 입력은 300ms 디바운스를 거쳐 버튼 ID로 변환됩니다.
+2. **출동 조건 검증** — 배터리·AED 적재·AMCL·Nav2 상태를 확인하고 목적지를 확정합니다.
+3. **자율 배송** — Nav2로 주행하며 경광 LED와 음성으로 길을 확보합니다.
+4. **도착·반출** — 목표점 10cm 이내에 정지해 도착을 안내하고, 홀센서가 반출을 확정합니다.
+5. **복귀·기록** — 홈으로 복귀해 ArUco로 정밀 파킹하고 전 과정을 저장합니다.
 
-## 환경
+**판단 우선순위: 안전정지 › 배터리 보호 › AED 배송 › 자동 복귀 › 원격 제어**
 
-| 항목 | 버전/구성 |
-|---|---|
-| OS | Ubuntu 22.04 LTS |
-| ROS 2 | Humble |
-| 빌드 도구 | colcon |
-| Python | 3.10 (`ament_python` 패키지) |
-| GUI | Qt6 (C++), `ament_cmake` |
-| DB | PostgreSQL 16 (Docker Compose) |
+| 상황 | 처리 |
+| :-- | :-- |
+| GUI 비상정지 | 즉시 0속도, 안전 조건을 충족하기 전까지 재출발 금지 |
+| 낮은 장애물 | 초음파 감지 시 감속·정지 후 Nav2 재계획 |
+| 주행 중 중복 호출 | 기존 미션 유지, 신규 호출은 대기열에 등록 |
+| 목표 도달 실패 | 비용지도 초기화 후 최대 2회 재계획, 실패 시 기록 |
+| 배터리 부족 | 30% 미만 신규 미션 거부, 20% 미만 즉시 복귀, 10% 미만 안전정지 |
+| ArUco 미검출 | 0.2m 후퇴 후 재탐색, 최대 3회 재시도 |
+| AMCL 위치 유실 | 현재 위치 정지, 신규 목표 차단, 관리자 확인 요청 |
+| AED 미적재 호출 | 미션 거부, 경고 음성·LED·대시보드 경고 |
 
-DB 접속 정보 등 실값 설정은 커밋하지 않는다. `config/*.yaml.example`을 복사해 `config/*.yaml`로 만들고 값을 채운다.
+> 위 수치는 설계서 기준이며, 초음파 정지 거리처럼 시험 중 조정된 값은 launch 파라미터에서 관리합니다.
 
-```bash
-cp config/db.yaml.example config/db.yaml
-cp config/device.yaml.example config/device.yaml
-```
+<br/>
 
-## 폴더 구조
+## 🤖 로봇 하드웨어 변경 (v1 → v2)
 
+### v1
 
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/robot_v1_a.jpg" alt="로봇 v1 내부" /></td>
+    <td width="50%"><img src="docs/images/robot_v1_b.jpg" alt="로봇 v1 외관" /></td>
+  </tr>
+</table>
 
-### Raspberry Pi 4
+### v2
 
-```
-~/arduino_bridge_ws/                          ← ② include 대상
-├── src/arduino_bridge/
-│   ├── launch/
-│   │   └── robot_with_arduino.launch.py      
-│   ├── src/
-│   │   ├── serial_bridge.cpp                 → serial_bridge
-│   │   ├── led_status_node.cpp               → led_status_node
-│   │   ├── estop_node.cpp                    → estop_node
-│   │   ├── ultrasonic_safety_policy.cpp      → ultrasonic_node
-│   │   └── ultrasonic_safety_stop.cpp        → ultrasonic_node
-│   ├── CMakeLists.txt
-│   └── package.xml
-├── firmware/estop_firmware/estop_firmware.ino   (Pi는 한 겹 더)
-└── install/arduino_bridge/share/arduino_bridge/launch/
-    └── robot_with_arduino.launch.py          ← 실제 실행되는 사본(심볼릭이어야 함)
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/robot_v2_a.jpg" alt="로봇 v2 주행" /></td>
+    <td width="50%"><img src="docs/images/robot_v2_b.jpg" alt="로봇 v2 주행" /></td>
+  </tr>
+</table>
 
-~/turtlebot3_ws/                              ← ② include 대상
-└── install/turtlebot3_bringup/share/turtlebot3_bringup/launch/
-    ├── robot.launch.py                       ← usb_port:=opencr_port
-    └── camera.launch.py                      ← format:=camera_format ★ 이번에 추가
-└── install/coin_d4_driver/share/coin_d4_driver/params/
-    └── single_lidar_node.yaml                (robot.launch.py가 참조)
-└── src/turtlebot3/turtlebot3_bringup/config/
-    └── tb3_burger_picam2_640x480.yaml        (camera_info_url 기본값)
+<p align="center">
+  <img src="docs/images/robot_v2_caster.jpg" alt="로봇 하부 볼 캐스터 클로즈업" width="50%" />
+</p>
 
-~/medirun_ws/                                ← ① 실행 진입점
-└── src/
-    ├── medirun_bringup/                     ←  aurix_main_project_01/src/medirun_bringup
-    │   ├── launch/
-    │   └──   └── pi_bringup.launch.py       ← 실행
-    └── medirun_mission/                     ←  aurix_main_project_01/src/medirun_mission
+주행 영상: [하드웨어 수정 주행 영상](Video/하드웨어%20수정%20주행%20영상.mp4)
 
-~/turtlebot3_ws/install/turtlebot3_navigation2/share/turtlebot3_navigation2/param/humble/burger.yaml
-← aurix_main_project_01/src/turtlebot3/turtlebot3_navigation2/param/humble/burger.yaml
-```
+<br/>
 
+## 🖥 관제 대시보드 (Qt / C++)
 
+| 개요 | 실시간 모니터 | SLAM 맵핑 |
+| :--: | :--: | :--: |
+| <img src="docs/screenshots/gui/v2/01_overview.png" alt="개요" /> | <img src="docs/screenshots/gui/v2/02_live_monitor.png" alt="실시간 모니터" /> | <img src="docs/screenshots/gui/v2/10_slam_mapping.png" alt="SLAM 맵핑" /> |
 
+역할별 화면(관리자·사용자), 미션·호출 이력, 주행 로그, 원격 제어, 설정 화면으로 구성됩니다. 운영 영상: [대시보드 운영 영상](Video/대시보드%20운영%20영상2026-08-24%2012-01-20%20%28online-video-cutter.com%29.mp4)
 
-### Ubuntu
-```
-.
-├── src/                    # ROS 2 패키지 (빌드 대상만 둔다)
-│   ├── medirun_bringup/        # 전체 시스템 기동 launch (Nav2 + 대시보드)
-│   ├── medirun_navigation/     # Nav2·AMCL, 이동 정밀도 시험
-│   ├── medirun_mission/        # 미션 상태 관리, 도착·반출·복귀(arrival_return_manager)
-│   ├── medirun_sensor/         # 버튼·초음파·홀센서·LED 브리지, MQTT 버튼(mqtt_bridge)
-│   ├── medirun_vision/         # 카메라·ArUco 도킹
-│   ├── medirun_gui/            # Qt(C++) 대시보드
-│   ├── medirun_db/             # PostgreSQL 연동, 로그 보관(log_retention)
-│   ├── medirun_msgs/           # 커스텀 메시지·서비스·액션
-│   ├── arduino_bridge/         # 로봇(Pi) 실행 코드 팀 공유용 — 아래 "아두이노 브리지" 참고
-│   ├── turtlebot3/             # ROBOTIS 공식 패키지 벤더링(humble) — bringup·cartographer·navigation2 등
-│   └── turtlebot3_msgs/        # ROBOTIS 공식 메시지 벤더링(humble)
-├── firmware/                # Arduino/ESP32 펌웨어
-├── maps/                    # 지도(.pgm/.yaml), 웨이포인트 정의
-├── config/                  # DB·장비 설정 (`.example`만 커밋)
-├── db/                      # PostgreSQL 스키마·마이그레이션
-├── docs/                    # 제출 문서, 시험표
-│   ├── tests/                   # 시험 기록 문서(.md)·측정 원본(data/*.csv)
-│   ├── dashboard_wireframe/     # Qt 대시보드 와이어프레임
-│   └── screenshots/gui/         # Qt 대시보드 화면 캡처
-├── scripts/                 # 기동·자동 실행 스크립트
-│   └── analysis/                # 측정값 사후 분석 도구 (ROS 비의존)
-├── COMMIT_RULES.md          # Git 브랜치·커밋 규칙
-├── CONVENTIONS.md           # 네이밍·구조 컨벤션
-└── README.md
-```
+<br/>
 
-## 빌드
-
-`src/turtlebot3`, `src/turtlebot3_msgs`가 이 저장소에 벤더링되어 있어 별도로
-`~/turtlebot3_ws` 같은 개인 워크스페이스를 미리 만들어둘 필요가 없다. `rosdep`으로
-시스템 의존성(cartographer_ros, nav2 등)만 한 번 설치하면 된다.
-
-```bash
-source /opt/ros/humble/setup.bash
-rosdep install --from-paths src --ignore-src -r -y   # 처음 한 번만
-# 현재 인터페이스가 빠져있기 때문에 (--packages-skip medirun_msgs) 추가해주어야 함
-colcon build --symlink-install --packages-skip medirun_msgs
-source install/setup.bash
-```
-
-## 실행
-
-### 메인 (전체 시스템 기동)
-
-로봇 본체 드라이버(`turtlebot3_bringup robot.launch.py` 등, 라이다·모터)는 로봇(Pi) 쪽에서 별도로 이미 떠 있어야 한다. 그 위에서 Nav2 스택과 `medirun_gui` 대시보드를 한 번에 띄운다.
-
-```bash
-./scripts/run.sh
-# 또는 직접
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-ros2 launch medirun_bringup bringup.launch.py
-```
-
-기본 맵은 `maps/last_class_map_modi.yaml`이며, `map:=/path/other.yaml`로 바꿀 수 있다. RViz를 같이 띄우려면 `use_rviz:=true`, 대시보드 없이 Nav2만 띄우려면 `use_gui:=false`를 붙인다.
-
-### 카메라 (Pi에서 별도 실행)
-
-로봇 본체 드라이버와 마찬가지로 Pi 쪽에서 직접 띄운다. 로봇 카메라는 CSI 카메라(IMX219)라 `v4l2_camera`가 아니라 `libcamera` 기반 `camera_ros`(`turtlebot3_bringup` 소유 launch)로 구동하며, `/camera/image_raw`(+ `compressed`)를 발행하면 원격 제어 페이지의 카메라 화면이 이를 구독한다.
-
-```bash
-source /opt/ros/humble/setup.bash
-ros2 launch turtlebot3_bringup camera.launch.py format:=BGR888
-```
-
-카메라 launch는 `turtlebot3_bringup/config/cyclonedds_udp.xml`을 자동 적용해
-CycloneDDS IPv4 UDP 전송을 사용한다. 이미지 데이터는 JPEG 압축 토픽을
-`BEST_EFFORT`, depth 1로 구독하므로 네트워크가 잠시 밀려도 과거 프레임을
-쌓지 않고 최신 프레임을 우선한다. Pi 쪽 소스를 갱신한 뒤에는
-`turtlebot3_bringup`을 다시 빌드하고 `install/setup.bash`를 source해야 한다.
-
-> `src/medirun_bringup/launch/camera.launch.py`(`v4l2_camera` 기반)는 UVC 웹캠 등 다른 하드웨어 대비용으로 남겨둔 미사용 파일이며, 실제 로봇에서는 쓰지 않는다.
-
-
-### DB (PostgreSQL, Docker)
-
-Docker / Docker Compose가 설치되어 있어야 한다. 최초 1회만 아래처럼 실행하면 `db/schema/postgresql_schema.sql`이 자동 적용된다.
-
-```bash
-cp .env.example .env   # POSTGRES_PASSWORD 는 반드시 채운다(기본값 없음)
-docker compose up -d
-```
-
-```bash
-docker exec aurix_postgres psql -U aurix -d aurix_medirun_db -c "\dt"   # 테이블 목록 확인
-```
-
-> `db/schema/postgresql_schema.sql`은 컨테이너를 **처음 만들 때(빈 볼륨일 때)만** 자동 실행된다. 스키마를 수정한 뒤 다시 적용하려면 기존 데이터를 지우고 재기동해야 한다: `docker compose down -v && docker compose up -d` (`-v`가 볼륨까지 삭제하므로 기존 데이터가 날아간다).
-
-### 아두이노 브리지 (Pi 실행 코드 공유용)
-
-`src/arduino_bridge/`는 로봇(Pi)에서 도는 코드(시리얼 브리지, LED 상태, e-stop, PS4 텔레옵 등)를 팀원끼리 공유·관리하기 위한 폴더다. **실제 Pi는 이 저장소가 아니라 별도 워크스페이스(`~/arduino_bridge_ws`)에서 실행하므로, 두 쪽이 수시로 어긋날 수 있다.** Pi 쪽을 고치면 이 폴더에도 반영하고, 반대로 이 폴더를 고쳤으면 Pi에도 동기화하는 걸 잊지 않는다.
-
-**Pi와 GUI를 실행하는 PC 양쪽 모두 `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`로 통일**해서 쓴다 (각 머신의 `~/.bashrc`에 추가 권장). 서로 다른 DDS 벤더를 섞어 쓰면 노드 디스커버리가 꼬이거나, Fast-DDS 기본 설정에서는 Cartographer의 내부 상태 토픽이 커질 때 메시지가 드롭되는 문제가 있다.
-
-
-### GUI (Qt 대시보드 단독 실행)
-
-`medirun_gui`는 `ament_cmake` 패키지로, 다른 `medirun_*` 패키지와 동일하게 colcon으로 빌드·실행한다. Qt6 6.5 이상이 필요하며, 시스템 Qt 버전이 더 낮다면 `--cmake-args -DCMAKE_PREFIX_PATH=<Qt6.5+ 설치 경로>`로 지정한다.
-
-```bash
-source /opt/ros/humble/setup.bash
-colcon build --packages-select medirun_gui --symlink-install
-source install/setup.bash
-ros2 run medirun_gui medirun_gui_app
-```
-
-소스만 변경했다면 `colcon build --packages-select medirun_gui`만 다시 실행한 뒤 위와 동일하게 실행한다.
-
-### 테스트 (이동 정밀도 시험)
-
-`medirun_navigation`의 회전/직진 정밀도 시험 러너를 실행한다. 결과는 `docs/tests/T-XX_*.md`에 markdown 보고서로 저장된다.
-
-```bash
-# 회전 정확도 (T-00)
-ros2 launch medirun_navigation navigation_rotation_test.launch.py \
-  repeat_count:=10 test_id:=T-00
-
-# 직진 정확도 (T-01)
-ros2 launch medirun_navigation navigation_straight_test.launch.py \
-  repeat_count:=10 distance_m:=0.45 test_id:=T-01
-```
-
-주요 파라미터는 `src/medirun_navigation/config/navigation_*_test.yaml`에서 조정한다.
-
-## 시험 결과
+## 🧪 시험 결과
 
 | 시험 ID | 항목 | 결과(절대평균오차) | 기준 | 판정 |
-|---|---|---|---|---|
+| :-- | :-- | :-- | :-- | :-- |
 | T-00 | 회전 정확도 (90°, 10회) | 0.13° | ≤ 2° | 충족 |
 | T-01 | 직진 정확도 (0.45m, 10회) | 0.2cm | ≤ 1cm | 충족 |
 
-상세 결과: [`docs/tests/T-00_rotation_accuracy_summary.docx`](docs/tests/T-00_rotation_accuracy_summary.docx), [`docs/tests/T-01_straight_accuracy_summary.docx`](docs/tests/T-01_straight_accuracy_summary.docx)
+**성공 판정 기준**: 버튼당 3회 반복 매핑 성공 · 일반 목적지 오차 10cm 이내 · 도킹 오차 3cm 이내 · 전체 시나리오 E2E 10회 중 8회 이상 성공(연속 3회 포함)
+
+<br/>
+
+## 🛠 기술 스택
+
+| 영역 | 스택 |
+| :-- | :-- |
+| 로봇 | TurtleBot3 Burger, Raspberry Pi 4, 2D LiDAR, 카메라(ArUco), 초음파·홀센서, ESP32/Arduino |
+| 소프트웨어 | ROS 2 Humble, Nav2, AMCL, SLAM(Cartographer·SLAM Toolbox), Python 3.10, C++ |
+| 관제 | Qt6 (C++), RViz2 |
+| 데이터 | PostgreSQL 16 (Docker Compose), `event_logger` |
+| 통신 | USB Serial, MQTT, ROS 2 DDS (CycloneDDS), UDP 영상 전송 |
+| 운영 | PM2 + systemd 자동 실행, Git 훅 기반 커밋 규칙 |
+
+<br/>
+
+## 📚 문서
+
+| 문서 | 내용 |
+| :-- | :-- |
+| [00 프로젝트 개요서](docs/AURIX_MediRun_00_프로젝트_개요서.pdf) | 추진 배경, 시스템 구성, 서비스 흐름, 운영 원칙, 성공 기준 |
+| [01 서비스 시나리오서](docs/AURIX_MediRun_01_서비스_시나리오서.pdf) | 정상·예외 시나리오(S-01~S-12), 상태 전이 |
+| [02 요구사항·설계·시험·인수·위험관리](docs/AURIX_MediRun_02_요구사항_설계_시험인수_위험관리.pdf) | 사용자·시스템 요구사항, Nav2·안전·도킹 설계, 시험 계획 |
+| [03 GUI·HMI 설계](docs/AURIX_MediRun_03_GUI_HMI_설계_Qt_CPP_최종완료본.pdf) | Qt(C++) 대시보드 설계 |
+| [04 ROS 2 소프트웨어 설계](docs/AURIX_MediRun_04_ROS2_소프트웨어_설계.pdf) | 노드·토픽·서비스·액션, 상태 머신, 로그 설계 |
+| [05 시스템 아키텍처 구조도](docs/AURIX_MediRun_05_시스템_아키텍처_구조도.pdf) | 데이터 흐름, 안전 제어, 확장성 |
+| [06 개발 규칙서](docs/AURIX_MediRun_06_개발_규칙서.pdf) | Git 작업 규칙, 네이밍·구조 규칙 |
+| [개발 환경·빌드·실행 가이드](docs/WORKSPACE_GUIDE.md) | 워크스페이스 구성, 빌드·실행 절차, 시험 방법 |
+| [COMMIT_RULES](COMMIT_RULES.md) · [CONVENTIONS](CONVENTIONS.md) | 브랜치·커밋 규칙, 네이밍·구조 컨벤션 |
+
+<br/>
+
+## 🚀 빠른 시작
+
+```bash
+./scripts/setup-git-hooks.sh        # Git 훅 활성화 (clone 직후 1회)
+source /opt/ros/humble/setup.bash
+colcon build --symlink-install --packages-skip medirun_msgs
+source install/setup.bash
+./scripts/run.sh                    # Nav2 + 대시보드 기동
+```
+
+DB 설정, Pi 쪽 실행, 카메라, 시험 실행 등 자세한 절차는 [개발 환경·빌드·실행 가이드](docs/WORKSPACE_GUIDE.md)를 참고하세요.
