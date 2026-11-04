@@ -118,6 +118,8 @@ IDLE → VALIDATING → DISPATCHED → NAVIGATING → ARRIVED → PAYLOAD_REMOVE
   </tr>
 </table>
 
+🎬 [v1 주행 영상](Video/로봇_V1_주행영상.mp4) (약 4분 24초)
+
 ### v2
 
 <table>
