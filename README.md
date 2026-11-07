@@ -149,6 +149,7 @@ IDLE → VALIDATING → DISPATCHED → NAVIGATING → ARRIVED → PAYLOAD_REMOVE
 
 관제사가 로봇 상태와 미션을 한 화면에서 확인하고, 필요하면 비상정지·미션 취소·홈 복귀·원격 조종을 내릴 수 있는 Qt(C++) 대시보드입니다. 대시보드가 끊겨도 자율 미션은 로봇 안에서 계속 수행됩니다.
 
+<!--
 <div align="center">
 <img src="docs/images/dashboard/login.png" alt="로그인 화면" width="720" />
 </div>
@@ -176,6 +177,7 @@ IDLE → VALIDATING → DISPATCHED → NAVIGATING → ARRIVED → PAYLOAD_REMOVE
 | :--: | :--: |
 | <img src="docs/images/dashboard/robots.png" alt="로봇 관리" /> | <img src="docs/images/dashboard/users.png" alt="사용자 관리" /> |
 | 운영 중인 로봇 이름과 모델 등록 | 계정 추가·삭제와 권한(ADMIN/STAFF/USER) 관리 |
+-->
 
 <p align="center">
   <img src="docs/images/dashboard_demo.gif" alt="대시보드 운영 (미리보기)" width="720" />
