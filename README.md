@@ -124,7 +124,7 @@ IDLE → VALIDATING → DISPATCHED → NAVIGATING → ARRIVED → PAYLOAD_REMOVE
   <img src="docs/images/robot_v1_driving.gif" alt="로봇 v1 주행 (미리보기)" width="280" />
 </p>
 
-🎬 [v1 주행 영상 전체 보기](Video/로봇_V1_주행영상.mp4) (약 4분 24초, 위 GIF는 앞부분 15초 미리보기)
+🎬 [v1 주행 영상 전체 보기](https://youtu.be/2j3xnAyrCw8)
 
 ### v2
 
@@ -143,7 +143,7 @@ IDLE → VALIDATING → DISPATCHED → NAVIGATING → ARRIVED → PAYLOAD_REMOVE
   <img src="docs/images/robot_v2_driving.gif" alt="로봇 v2 주행 (미리보기)" width="420" />
 </p>
 
-🎬 [v2 주행 영상 전체 보기](Video/하드웨어%20수정%20주행%20영상.mp4) (약 2분 28초, 위 GIF는 일부 구간 미리보기)
+🎬 [v2 주행 영상 전체 보기](https://youtu.be/Zs3RCvMrCqs)
 
 <br/>
 
@@ -185,7 +185,7 @@ IDLE → VALIDATING → DISPATCHED → NAVIGATING → ARRIVED → PAYLOAD_REMOVE
   <img src="docs/images/dashboard_demo.gif" alt="대시보드 운영 (미리보기)" width="720" />
 </p>
 
-🎬 [대시보드 운영 영상 전체 보기](Video/대시보드%20운영%20영상2026-08-24%2012-01-20%20%28online-video-cutter.com%29.mp4) (약 4분 50초, 위 GIF는 일부 구간 미리보기)
+🎬 [대시보드 운영 영상 전체 보기](https://youtu.be/OLHDFCh1oA8)
 
 <br/>
 
