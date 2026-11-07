@@ -8,6 +8,7 @@
 
 SOS 버튼이 눌린 구역까지 AED를 자율 주행으로 운반하고, 반출 후 스스로 복귀·파킹하며, 전 과정을 로컬 DB에 기록합니다.
 
+<!--
 ![ROS 2 Humble](https://img.shields.io/badge/ROS_2-Humble-22314E?style=flat-square&logo=ros&logoColor=white)
 ![Nav2](https://img.shields.io/badge/Nav2-AMCL-22314E?style=flat-square&logo=ros&logoColor=white)
 ![Qt6](https://img.shields.io/badge/Qt6-C++-41CD52?style=flat-square&logo=qt&logoColor=white)
@@ -15,6 +16,7 @@ SOS 버튼이 눌린 구역까지 AED를 자율 주행으로 운반하고, 반�
 ![Arduino](https://img.shields.io/badge/Arduino-ESP32-00979D?style=flat-square&logo=arduino&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
 ![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04-E95420?style=flat-square&logo=ubuntu&logoColor=white)
+-->
 
 </div>
 
