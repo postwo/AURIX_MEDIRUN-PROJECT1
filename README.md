@@ -35,13 +35,14 @@
 7. [하드웨어 구성 및 제작](#7-하드웨어-구성-및-제작)
 8. [중앙 서버 (ROS 2)](#8-중앙-서버-ros-2)
 9. [미션 상태 흐름과 안전 제어](#9-미션-상태-흐름과-안전-제어)
-10. [관제 대시보드 (Qt / C++)](#10-관제-대시보드-qt--c)
-11. [구현 결과와 검증](#11-구현-결과와-검증)
-12. [현재 한계와 확장 목표](#12-현재-한계와-확장-목표)
-13. [소스 구성](#13-소스-구성)
-14. [프로젝트 기술 스택](#14-프로젝트-기술-스택)
-15. [설치와 실행](#15-설치와-실행)
-16. [문서](#16-문서)
+10. [시퀀스 다이어그램](#10-시퀀스-다이어그램)
+11. [관제 대시보드 (Qt / C++)](#11-관제-대시보드-qt--c)
+12. [구현 결과와 검증](#12-구현-결과와-검증)
+13. [현재 한계와 확장 목표](#13-현재-한계와-확장-목표)
+14. [소스 구성](#14-소스-구성)
+15. [프로젝트 기술 스택](#15-프로젝트-기술-스택)
+16. [설치와 실행](#16-설치와-실행)
+17. [문서](#17-문서)
 
 </details>
 
@@ -101,12 +102,41 @@
 
 1. 전원 인가 → 자동 실행 → 초기 위치 설정 → AED 적재 확인 → LED 초록, "시스템 준비 완료" 안내
 2. 목격자 한 명은 119에 신고하고, 다른 목격자는 가장 가까운 MediRun SOS 버튼을 누른다.
-3. 버튼 ID가 MQTT(또는 USB Serial)로 전달되고 `emergency_dispatcher`가 버튼 ID·중복 호출·배터리·AMCL·AED 적재를 검사한다.
+3. 버튼 ID가 ESP32 → MQTT로 전달되고 `emergency_dispatcher`가 버튼 ID·중복 호출·배터리·AMCL·AED 적재를 검사한다.
 4. 출동 미션이 Nav2 목표로 전송된다. 주행 중 LED는 빨강↔주황 경광 모드, "긴급상황 발생, 비켜주세요"를 5초 주기로 반복한다.
 5. LiDAR/Nav2로 장애물을 회피하고, 초음파가 저상 장애물을 감지하면 감속·정지·재계획한다.
 6. 호출 구역 10cm 이내 도착 → LED 주황 점멸 → AED 도착과 119 신고·위치 전달 안내
 7. 홀센서가 자석 이탈을 0.5초 이상 감지하면 반출을 확정하고 15초 후 복귀한다.
 8. 홈 웨이포인트 → 도킹 대기점 → ArUco 정렬·파킹 → IDLE(LED 초록)
+
+<table>
+  <tr>
+    <td width="25%" align="center"><img src="docs/images/scenes/01_standby_aed_loaded.jpg" alt="대기 · AED 적재" /></td>
+    <td width="25%" align="center"><img src="docs/images/scenes/02_callzone_button.jpg" alt="호출 구역 콜버튼" /></td>
+    <td width="25%" align="center"><img src="docs/images/scenes/03_station_navigation.jpg" alt="역사 모형 자율 주행" /></td>
+    <td width="25%" align="center"><img src="docs/images/scenes/04_aed_box_close.jpg" alt="AED 수납함" /></td>
+  </tr>
+  <tr>
+    <td align="center">① 대기 · AED 적재</td>
+    <td align="center">② 호출 구역 벽면 콜버튼</td>
+    <td align="center">③ 역사 모형 자율 주행</td>
+    <td align="center">④ 도착 · AED 수납함</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/scenes/05_aed_removal.jpg" alt="AED 반출" /></td>
+    <td align="center"><img src="docs/images/scenes/06_return_home.jpg" alt="홈 복귀" /></td>
+    <td align="center"><img src="docs/images/scenes/07_aruco_parking.jpg" alt="ArUco 정밀 파킹" /></td>
+    <td align="center"><img src="docs/images/robot_v2_a.jpg" alt="로봇 v2" /></td>
+  </tr>
+  <tr>
+    <td align="center">⑤ AED 반출 (수납함 개봉)</td>
+    <td align="center">⑥ 자동 복귀</td>
+    <td align="center">⑦ ArUco 마커 정밀 파킹</td>
+    <td align="center">v2 로봇 (트레일러 결합)</td>
+  </tr>
+</table>
+
+> 장면은 [`ppt/시연 영상.mp4`](ppt) 에서 캡처했습니다.
 
 ### Scenario 2 · 주행 중 중복 호출 / 목표 도달 실패 (S-02, S-04)
 
@@ -304,6 +334,27 @@
 | 호출 장치 | ESP32 Wi-Fi 콜버튼 (GPIO D25, MQTT `medirun/button`) | 버튼 ID(BTN_01~) 전송 |
 | 관제 PC | Ubuntu · Qt6 대시보드 · 중앙 서버 · PostgreSQL · mosquitto | 관제·출동·기록 |
 
+> `all_in_one_module.ino`에는 유선 SOS 버튼 입력(A1~A3)도 정의돼 있지만, A1을 홀센서가 쓰고 있어 현재 비활성입니다. 실제 호출은 ESP32 Wi-Fi 콜버튼으로만 들어옵니다.
+
+### 배선 · 센서 배치
+
+<p align="center">
+  <img src="docs/images/hardware_wiring.png" alt="MediRun 배선 · 센서 배치" width="100%" />
+</p>
+
+### 제작 과정 · v0 트레일러 모형
+
+<table>
+  <tr>
+    <td width="50%" align="center"><img src="assets/robot.jpg" alt="트레일러 초기 모형" /></td>
+    <td width="50%" align="center"><img src="docs/images/scenes/04_aed_box_close.jpg" alt="최종 AED 수납함" /></td>
+  </tr>
+  <tr>
+    <td align="center">v0 · ROBOTIS 박스로 만든 트레일러 견인 시험</td>
+    <td align="center">최종 · AED 수납함과 후방 초음파</td>
+  </tr>
+</table>
+
 ### 로봇 v1
 
 <table>
@@ -406,7 +457,32 @@ IDLE → VALIDATING → DISPATCHED → NAVIGATING → ARRIVED → PAYLOAD_REMOVE
 
 ---
 
-## 10. 관제 대시보드 (Qt / C++)
+## 10. 시퀀스 다이어그램
+
+<details open>
+<summary><b>SD-1 · SOS 호출 → 출동 → 도착</b></summary>
+
+<p align="center"><img src="docs/images/sequence/sd1_dispatch.png" alt="SOS 호출 시퀀스" width="100%" /></p>
+
+</details>
+
+<details>
+<summary><b>SD-2 · AED 반출 → 자동 복귀 → 정밀 파킹</b></summary>
+
+<p align="center"><img src="docs/images/sequence/sd2_return_dock.png" alt="반출·복귀 시퀀스" width="100%" /></p>
+
+</details>
+
+<details>
+<summary><b>SD-3 · 예외 처리 (출동 보류 · 중복 호출 · 재계획 · 운영자 명령)</b></summary>
+
+<p align="center"><img src="docs/images/sequence/sd3_exceptions.png" alt="예외 처리 시퀀스" width="100%" /></p>
+
+</details>
+
+---
+
+## 11. 관제 대시보드 (Qt / C++)
 
 관제사가 로봇 상태와 미션을 한 화면에서 확인하고, 필요하면 비상정지·미션 취소·홈 복귀·원격 조종을 내릴 수 있는 Qt(C++) 대시보드입니다. 대시보드가 끊겨도 도착 이후의 반출·복귀는 로봇 안에서 계속 수행됩니다.
 
@@ -427,22 +503,27 @@ IDLE → VALIDATING → DISPATCHED → NAVIGATING → ARRIVED → PAYLOAD_REMOVE
 
 ---
 
-## 11. 구현 결과와 검증
+## 12. 구현 결과와 검증
 
-### 11.1 주행 정확도 시험
+### 12.1 주행 정확도 시험
 
 | 시험 ID | 항목 | 결과(절대평균오차) | 기준 | 판정 |
 | :-- | :-- | :-- | :-- | :-- |
 | T-00 | 회전 정확도 (90°, 10회) | 0.13° | ≤ 2° | 충족 |
 | T-01 | 직진 정확도 (0.45m, 10회) | 0.2cm | ≤ 1cm | 충족 |
 
+<p align="center">
+  <img src="assets/Heading%20angle.jpg" alt="회전 정확도 시험 (각도자)" width="45%" />
+</p>
+<p align="center">T-00 회전 정확도 시험 — 각도자 위에서 90° 회전 후 실측</p>
+
 시험 원본: [`docs/tests/`](docs/tests)
 
-### 11.2 성공 판정 기준
+### 12.2 성공 판정 기준
 
 버튼당 3회 반복 매핑 성공 · 일반 목적지 오차 10cm 이내 · 도킹 오차 3cm 이내 · 전체 시나리오 E2E 10회 중 8회 이상 성공(연속 3회 포함)
 
-### 11.3 자동 시험
+### 12.3 자동 시험
 
 | 패키지 | 내용 | 결과 |
 | :-- | :-- | :-- |
@@ -454,13 +535,13 @@ cd src/medirun_mission && python3 -m pytest -q test
 cd src/medirun_server && python3 -m pytest -q test
 ```
 
-### 11.4 트러블슈팅 기록
+### 12.4 트러블슈팅 기록
 
 분야별 문제·원인·해결: [`docs/troubleshooting/`](docs/troubleshooting) (COMM · DB · GUI · HW · INFRA · NAV · SIM · SLAM)
 
 ---
 
-## 12. 현재 한계와 확장 목표
+## 13. 현재 한계와 확장 목표
 
 | 현재 한계 | 확장 목표 |
 | :-- | :-- |
@@ -472,7 +553,7 @@ cd src/medirun_server && python3 -m pytest -q test
 
 ---
 
-## 13. 소스 구성
+## 14. 소스 구성
 
 ```text
 AURIX_MEDIRUN-PROJECT1/
@@ -498,7 +579,7 @@ AURIX_MEDIRUN-PROJECT1/
 
 ---
 
-## 14. 프로젝트 기술 스택
+## 15. 프로젝트 기술 스택
 
 ### Robot & Middleware
 <p>
@@ -537,9 +618,9 @@ AURIX_MEDIRUN-PROJECT1/
 
 ---
 
-## 15. 설치와 실행
+## 16. 설치와 실행
 
-### 15.1 저장소 받기 · 빌드
+### 16.1 저장소 받기 · 빌드
 
 ```bash
 git clone https://github.com/postwo/AURIX_MEDIRUN-PROJECT1.git
@@ -550,7 +631,7 @@ colcon build --symlink-install --packages-skip medirun_msgs
 source install/setup.bash
 ```
 
-### 15.2 장비별 준비
+### 16.2 장비별 준비
 
 | 장비 | 실행 | 먼저 준비할 항목 |
 | :-- | :-- | :-- |
@@ -558,7 +639,7 @@ source install/setup.bash
 | 관제 PC (대시보드) | `./scripts/run.sh` 또는 `ros2 launch medirun_bringup pc_bringup.launch.py` | Qt6, `config/db.yaml`, `docker compose up -d` (PostgreSQL) |
 | 관제 PC (중앙 서버) | `./scripts/run_server.sh` | `maps/waypoints/*.yaml`(버튼·HOME), 같은 `ROS_DOMAIN_ID`·CycloneDDS |
 
-### 15.3 통합 실행 순서
+### 16.3 통합 실행 순서
 
 1. DB: `cp .env.example .env` 후 값 입력 → `docker compose up -d`
 2. 로봇: Pi에서 `pi_bringup.launch.py` 실행 (Nav2 로컬라이제이션 + 안전 게이트 + 복귀 매니저)
@@ -579,7 +660,7 @@ DB 설정, Pi 쪽 실행, 카메라, 시험 실행 등 자세한 절차는 [개�
 
 ---
 
-## 16. 문서
+## 17. 문서
 
 | 문서 | 내용 |
 | :-- | :-- |
