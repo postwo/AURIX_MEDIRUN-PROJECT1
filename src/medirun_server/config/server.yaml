@@ -1,0 +1,16 @@
+# medirun_central_server 파라미터. 경로는 워크스페이스 루트(./scripts/run_server.sh 실행 위치) 기준.
+medirun_central_server:
+  ros__parameters:
+    robot_id: "medirun_bot"
+    # active : 서버가 출동을 맡는다(대시보드 MissionController 와 동시 사용 금지)
+    # monitor: 대시보드가 출동, 서버는 상태 집계·기록·서비스만
+    dispatch_mode: "active"
+    waypoints_path: "maps/waypoints"
+    home_waypoint_id: "HOME"
+    max_nav_attempts: 3            # 최초 1회 + 재계획 2회 (설계서: 최대 2회 재계획)
+    heartbeat_timeout_sec: 5.0     # 이 시간 동안 로봇 토픽이 하나도 안 오면 ROBOT_OFFLINE
+    battery_reject_percent: 30.0   # 30% 미만 신규 미션 거부
+    status_period_sec: 1.0
+    publish_system_health: true    # /medirun/system/battery, /medirun/system/readiness 발행
+    log_dir: "logs/medirun_server"
+    db_config_path: "config/db.yaml"   # 없거나 비어 있으면 DB 기록 off (JSONL 만)
