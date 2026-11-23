@@ -293,8 +293,17 @@
 ### 소프트웨어 아키텍처
 
 <p align="center">
-  <img src="docs/images/architecture.png" alt="MediRun 시스템 아키텍처" width="85%" />
+  <img src="docs/images/software_architecture.png" alt="MediRun 소프트웨어 아키텍처" width="100%" />
 </p>
+
+<details>
+<summary><b>기존 시스템 구성도</b></summary>
+
+<p align="center">
+  <img src="docs/images/architecture.png" alt="MediRun 시스템 아키텍처 (기존)" width="85%" />
+</p>
+
+</details>
 
 - **현장 입력**: 역사 안 ESP32 콜버튼이 MQTT로 호출을 보내면 `mqtt_bridge`가 버튼 ID를 ROS 2 토픽으로 바꾸고, `emergency_dispatcher`가 출동 조건을 검사합니다.
 - **로봇(Raspberry Pi 4 + TurtleBot3)**: 아두이노 센서(초음파·홀센서·LED)를 USB Serial로 받고, Nav2·AMCL이 주행하며, 초음파 안전 게이트와 `safety_manager`가 모든 속도 명령을 마지막으로 검사한 뒤 `/cmd_vel`을 내보냅니다.
