@@ -10,8 +10,6 @@
 
 > **SOS 버튼이 눌린 곳까지 AED를 로봇이 대신 운반합니다.**
 
-환자가 쓰러졌을 때 목격자가 AED를 가지러 자리를 비우면 환자 곁이 비게 되고, 왕복 시간이 초기 대응 시간을 잠식합니다. **MediRun은 AED 운반을 로봇이 대신해서, 사람이 환자 곁에 남아 응급 대응에 집중할 수 있게 하는 이동형 보조 로봇**입니다. TurtleBot3 Burger에 직접 제작한 AED 트레일러를 결합하고, ROS 2 · Nav2 · Arduino 센서 · Qt 관제 대시보드 · PostgreSQL로 구성했습니다.
-
 | 로봇 v1 주행 | 로봇 v2 주행 | 관제 대시보드 |
 | :--: | :--: | :--: |
 | <img src="docs/images/robot_v1_driving.gif" alt="로봇 v1 주행" width="100%" /> | <img src="docs/images/robot_v2_driving.gif" alt="로봇 v2 주행" width="100%" /> | <img src="docs/images/dashboard_demo.gif" alt="대시보드 운영" width="100%" /> |
@@ -30,12 +28,7 @@
 
 ## 2. 프로젝트 주제
 
-| 항목 | 내용 |
-| :-- | :-- |
-| 적용 대상 | 지하철 역사 대합실·승강장 (가상 A역 시연) |
-| 운용 형태 | 단일 로봇 자율 주행, 도착 이후 반출·복귀·도킹은 로봇이 단독 처리 |
-| 호출 구성 | 고정 SOS 버튼 ↔ 호출 구역 1:1 매핑 |
-| 개발 기간 | 4주 (2026.07.20 ~ 08.14) |
+환자가 쓰러졌을 때 목격자가 AED를 가지러 자리를 비우면 환자 곁이 비게 되고, 왕복 시간이 초기 대응 시간을 잠식합니다. **MediRun은 AED 운반을 로봇이 대신해서, 사람이 환자 곁에 남아 응급 대응에 집중할 수 있게 하는 이동형 보조 로봇**입니다. TurtleBot3 Burger에 직접 제작한 AED 트레일러를 결합하고, ROS 2 · Nav2 · Arduino 센서 · Qt 관제 대시보드 · PostgreSQL로 구성했습니다.
 
 > MediRun은 AED 운반과 그 기록만 담당합니다. 환자 상태 판단·응급처치·119 자동 신고는 하지 않습니다.
 
@@ -59,7 +52,16 @@
 
 <sub>출처: [Schierbeck et al., *The Lancet Digital Health* (2023)](https://news.ki.se/drones-enabled-the-use-of-defibrillators-before-ambulance-arrival) · [질병관리청 급성심장정지조사 (2023)](https://www.kdca.go.kr/injury/biz/injury/damgInfo/heartStopMain.do)</sub>
 
-## 4. 핵심 기능
+## 4. 운영 환경 및 개발 정보
+
+| 항목 | 내용 |
+| :-- | :-- |
+| 적용 대상 | 지하철 역사 대합실·승강장 (가상 A역 시연) |
+| 운용 형태 | 단일 로봇 자율 주행, 도착 이후 반출·복귀·도킹은 로봇이 단독 처리 |
+| 호출 구성 | 고정 SOS 버튼 ↔ 호출 구역 1:1 매핑 |
+| 개발 기간 | 4주 (2026.07.20 ~ 08.14) |
+
+## 5. 핵심 기능
 
 - **SOS 호출 검증** : 버튼 ID·중복 호출·AED 적재·배터리·위치 추정 상태를 확인하고 출동한다.
 - **자율 배송** : Nav2로 주행하고 LiDAR·초음파로 장애물을 피한다.
@@ -68,7 +70,7 @@
 - **정밀 파킹** : ArUco 마커로 좌우 3cm·각도 5° 이내에 주차한다.
 - **관제 · 기록** : Qt 대시보드로 관제하고 전 과정을 PostgreSQL에 남긴다.
 
-## 5. 사용자 요구사항 (User Requirements)
+## 6. 사용자 요구사항 (User Requirements)
 
 | ID | 사용자 요구사항 |
 | :-- | :-- |
@@ -99,7 +101,7 @@
 | UR-025 | 전원만 넣으면 전체 시스템이 자동 기동해야 한다. |
 | UR-026 | 시연·복구 시 로봇을 원격 조작할 수 있어야 한다. |
 
-## 6. 시스템 요구사항 (System Requirements)
+## 7. 시스템 요구사항 (System Requirements)
 
 | ID | 기능 | 요구사항 |
 | :-- | :-- | :-- |
@@ -148,7 +150,7 @@
 
 </details>
 
-## 7. 시스템 아키텍처
+## 8. 시스템 아키텍처
 
 ### 하드웨어 아키텍처
 
@@ -158,7 +160,7 @@
 
 <img src="docs/images/software_architecture.png" alt="소프트웨어 아키텍처" width="100%" />
 
-## 8. 하드웨어 구성
+## 9. 하드웨어 구성
 
 | 구분 | 구성 |
 | :-- | :-- |
@@ -186,7 +188,7 @@
 
 > 유선 SOS 버튼 입력(A1~A3)은 A1을 홀센서가 쓰고 있어 비활성입니다. 호출은 ESP32 콜버튼으로만 받습니다.
 
-## 9. 운영 시나리오
+## 10. 운영 시나리오
 
 ### Scenario #1 - SOS 호출과 AED 배송
 
@@ -231,7 +233,7 @@
   </tr>
 </table>
 
-## 10. 시퀀스 다이어그램
+## 11. 시퀀스 다이어그램
 
 각 시나리오에서 노드 사이에 오가는 메시지 순서입니다.
 
@@ -247,7 +249,7 @@
 
 <img src="docs/images/sequence/sd3_exceptions.png" alt="예외 처리 시퀀스 다이어그램" width="100%" />
 
-## 11. 중앙 서버 (ROS 2)
+## 12. 중앙 서버 (ROS 2)
 
 출동 판단을 대시보드 밖으로 빼서, PC의 ROS 2 노드 `medirun_central_server`가 맡도록 했습니다.
 
@@ -266,7 +268,7 @@
 
 > 시험 33건을 통과했습니다. 실제 로봇과의 연동 주행 시험은 아직 진행하지 않았습니다.
 
-## 12. 구현 결과
+## 13. 구현 결과
 
 | 시험 | 항목 | 결과 | 기준 | 판정 |
 | :-- | :-- | :-- | :-- | :-- |
@@ -277,7 +279,7 @@
 - **트러블슈팅** : [`docs/troubleshooting/`](docs/troubleshooting) (통신 · DB · GUI · 하드웨어 · 주행 · SLAM)
 - **자동 시험** : `medirun_mission` 115건, `medirun_server` 33건 통과
 
-## 13. 소스 구성
+## 14. 소스 구성
 
 | 경로 | 역할 |
 | :-- | :-- |
@@ -291,7 +293,7 @@
 | [`db/`](db) | PostgreSQL 스키마 · 마이그레이션 |
 | [`docs/`](docs) | 설계서 00~06 · 시험 · 트러블슈팅 · 이미지 |
 
-## 14. 프로젝트 기술 스택
+## 15. 프로젝트 기술 스택
 
 | 구분 | 사용 기술 |
 | :-- | :-- |
@@ -302,7 +304,7 @@
 | GUI | Qt6 (C++) |
 | 운영 · 협업 | PM2 · systemd 자동 실행, Git 훅 기반 커밋 규칙, GitHub |
 
-## 15. 설치와 실행
+## 16. 설치와 실행
 
 ```bash
 git clone https://github.com/postwo/AURIX_MEDIRUN-PROJECT1.git
@@ -321,7 +323,7 @@ source install/setup.bash
 
 자세한 절차는 [개발 환경 · 빌드 · 실행 가이드](docs/WORKSPACE_GUIDE.md)를 참고하세요.
 
-## 16. 문서
+## 17. 문서
 
 | 문서 | 내용 |
 | :-- | :-- |
