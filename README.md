@@ -275,6 +275,21 @@
 | T-00 | 90° 회전 10회 | 평균 오차 0.13° | 2° 이하 | 충족 |
 | T-01 | 0.45m 직진 10회 | 평균 오차 0.2cm | 1cm 이하 | 충족 |
 
+<table>
+  <tr>
+    <td align="center" width="25%"><img src="assets/Heading%20angle.jpg" alt="T-00 회전 정확도 시험" width="95%" /></td>
+    <td align="center" width="25%"><img src="docs/images/scenes/01_standby_aed_loaded.jpg" alt="대기 중 AED 적재" width="95%" /></td>
+    <td align="center" width="25%"><img src="docs/images/scenes/04_aed_box_close.jpg" alt="도착 후 AED 수납함" width="95%" /></td>
+    <td align="center" width="25%"><img src="docs/images/scenes/06_return_home.jpg" alt="반출 후 자동 복귀" width="95%" /></td>
+  </tr>
+  <tr>
+    <td align="center">T-00 회전 정확도 시험</td>
+    <td align="center">대기 · AED 적재</td>
+    <td align="center">도착 · AED 수납함</td>
+    <td align="center">반출 후 자동 복귀</td>
+  </tr>
+</table>
+
 - **시험 원본** : [`docs/tests/`](docs/tests)
 - **트러블슈팅** : [`docs/troubleshooting/`](docs/troubleshooting) (통신 · DB · GUI · 하드웨어 · 주행 · SLAM)
 - **자동 시험** : `medirun_mission` 115건, `medirun_server` 33건 통과
