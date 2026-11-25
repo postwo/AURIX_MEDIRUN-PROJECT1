@@ -19,10 +19,23 @@
 
 ## 1. 팀 구성 및 역할
 
-| 담당자 | 담당 파트 | 주요 기여 |
-| :---: | :---: | --- |
-| 도희정 | DB · 대시보드<br>복귀 흐름 | DB 1차 설계(공동)·로그인·로봇 등록, 대시보드 재구성·원격 제어·웨이포인트 관리, 미션 디스패치와 Pi 로컬 복귀(`arrival_return_manager`), ESP32 콜버튼 펌웨어 |
-| 최치언 | 하드웨어<br>관제 · 주행 안전 | 로봇·AED 트레일러 제작과 Arduino 센서 보드, DB 1차 설계(공동), 실시간·미션 관제·SLAM 페이지, 초음파 안전정지·Nav2 튜닝, ArUco 전면주차, 정확도 시험 |
+<table>
+  <tr>
+    <th nowrap>담당자</th>
+    <th nowrap>담당 파트</th>
+    <th>주요 기여</th>
+  </tr>
+  <tr>
+    <td align="center" nowrap>도희정</td>
+    <td align="center" nowrap>DB · 대시보드 ·<br>복귀 흐름</td>
+    <td>DB 1차 설계(공동)·로그인·로봇 등록, 대시보드 재구성·원격 제어·웨이포인트 관리, 미션 디스패치와 Pi 로컬 복귀(<code>arrival_return_manager</code>), ESP32 콜버튼 펌웨어</td>
+  </tr>
+  <tr>
+    <td align="center" nowrap>최치언</td>
+    <td align="center" nowrap>하드웨어 ·<br>관제 · 주행 안전</td>
+    <td>로봇·AED 트레일러 제작과 Arduino 센서 보드, DB 1차 설계(공동), 실시간·미션 관제·SLAM 페이지, 초음파 안전정지·Nav2 튜닝, ArUco 전면주차, 정확도 시험</td>
+  </tr>
+</table>
 
 > 설계서(00~06)는 함께 작성했습니다. 담당 내용은 `git log`의 작성자별 커밋을 기준으로 정리했습니다.
 
