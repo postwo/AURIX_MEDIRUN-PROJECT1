@@ -28,12 +28,12 @@
   <tr>
     <td align="center" nowrap>도희정</td>
     <td align="center" nowrap>DB · 대시보드 ·<br>복귀 흐름</td>
-    <td>DB 1차 설계(공동)·로그인·로봇 등록, 대시보드 재구성·원격 제어·웨이포인트 관리, 미션 디스패치와 Pi 로컬 복귀(<code>arrival_return_manager</code>), ESP32 콜버튼 펌웨어</td>
+    <td>DB 설계(공동)·로그인·로봇 등록, 대시보드 재구성·원격 제어·웨이포인트 관리, 미션 디스패치와 Pi 로컬 복귀(<code>arrival_return_manager</code>), ESP32 콜버튼 펌웨어</td>
   </tr>
   <tr>
     <td align="center" nowrap>최치언</td>
     <td align="center" nowrap>하드웨어 ·<br>관제 · 주행 안전</td>
-    <td>로봇·AED 트레일러 제작과 Arduino 센서 보드, DB 1차 설계(공동), 실시간·미션 관제·SLAM 페이지, 초음파 안전정지·Nav2 튜닝, ArUco 전면주차, 정확도 시험</td>
+    <td>로봇·AED 트레일러 제작과 Arduino 센서 보드, DB 설계(공동), 실시간·미션 관제·SLAM 페이지, 초음파 안전정지·Nav2 튜닝, ArUco 전면주차, 정확도 시험</td>
   </tr>
 </table>
 
